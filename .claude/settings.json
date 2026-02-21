@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__think_about_collected_information",
+      "Bash(gh api:*)"
+    ]
+  }
+}

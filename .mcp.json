@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "env": {}
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "gemini-google-search": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "mcp-gemini-google-search"
+      ],
+      "env": {
+        "GEMINI_API_KEY": "<YOUR_GEMINI_API_KEY>",
+        "GEMINI_MODEL": "gemini-2.5-flash"
+      }
+    }
+  }
+}
