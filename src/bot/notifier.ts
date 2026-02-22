@@ -4,6 +4,7 @@ import { createLogger } from '../utils/logger.js'
 import { COLORS, createEmbed, createQueueButtons, createPrButtons } from './theme.js'
 import type { ProgressData, ProgressStage } from '../agents/coder/types.js'
 import type { CostReport } from '../utils/cost-tracker.js'
+import type { UsageReport, UsageSnapshot } from '../utils/usage-monitor.js'
 
 const log = createLogger('notifier')
 
@@ -141,6 +142,70 @@ export async function notifyError(errorMessage: string, channelId?: string): Pro
   })
 
   await channel.send({ embeds: [embed] })
+}
+
+// --- 使用量レポート ---
+
+function formatUsageSnapshot(snapshot: UsageSnapshot | null): string {
+  if (!snapshot) return 'データなし'
+
+  if (snapshot.error) {
+    return `**エラー**: ${snapshot.error.slice(0, 200)}`
+  }
+
+  if (!snapshot.parsed) {
+    return snapshot.raw.slice(0, 300) || 'データ取得できませんでした'
+  }
+
+  const parts: string[] = []
+
+  if (snapshot.parsed.usagePercent !== undefined) {
+    parts.push(`使用率: **${snapshot.parsed.usagePercent}%**`)
+  }
+
+  if (snapshot.parsed.resetAt) {
+    parts.push(`リセット: ${snapshot.parsed.resetAt}`)
+  }
+
+  parts.push(snapshot.parsed.summary)
+
+  return parts.join('\n').slice(0, 1024)
+}
+
+export async function notifyUsageReport(
+  report: UsageReport,
+  channelId?: string,
+): Promise<void> {
+  const channel = await getChannel(channelId)
+  if (!channel) return
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = []
+
+  fields.push({
+    name: 'Claude (Max)',
+    value: formatUsageSnapshot(report.claude),
+    inline: false,
+  })
+
+  fields.push({
+    name: 'OpenAI Codex',
+    value: formatUsageSnapshot(report.codex),
+    inline: false,
+  })
+
+  const hasErrors = report.claude?.error ?? report.codex?.error
+  const highUsage =
+    (report.claude?.parsed?.usagePercent ?? 0) >= 80 ||
+    (report.codex?.parsed?.usagePercent ?? 0) >= 80
+  const color = hasErrors ? COLORS.error : highUsage ? COLORS.warning : COLORS.info
+
+  const embed = createEmbed(color, 'LLM 使用量レポート', {
+    fields,
+    footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  })
+
+  await channel.send({ embeds: [embed] })
+  log.info('Usage report sent to Discord')
 }
 
 // --- Thread 管理 + リアルタイム進捗 ---
