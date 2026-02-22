@@ -64,6 +64,16 @@ export const config = {
     maxRetries: Number(optional('CODER_MAX_RETRIES', '3')),
     timeoutMs: Number(optional('CODER_TIMEOUT_MS', String(30 * 60 * 1000))),
   },
+  usageMonitor: {
+    cronSchedule: optional('USAGE_MONITOR_SCHEDULE', '0 */6 * * *'),
+    chromeUserDataDir: optional(
+      'USAGE_CHROME_USER_DATA_DIR',
+      './data/chrome-usage-profile',
+    ),
+    timeoutMs: Number(optional('USAGE_MONITOR_TIMEOUT_MS', '60000')),
+    claudeUsageUrl: 'https://claude.ai/settings/usage',
+    codexUsageUrl: 'https://chatgpt.com/codex/settings/usage',
+  },
 } as const
 
 export function findProjectByGuildId(guildId: string): ProjectConfig | undefined {
