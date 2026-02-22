@@ -4,7 +4,7 @@ import { createLogger } from '../utils/logger.js'
 import { dequeue, getStats, updateStatus, markForRetry } from './processor.js'
 import { acquireLock, releaseLock, isDailyBudgetExceeded } from './rate-limiter.js'
 import { getDailyCost, getCostReport } from '../utils/cost-tracker.js'
-import { notifyCostReport, notifyCostAlert, notifyUsageReport, notifyUsageAlert } from '../bot/notifier.js'
+import { notifyCostReport, notifyCostAlert, notifyUsageReport, notifyDailyUsageStatus } from '../bot/notifier.js'
 import { scrapeUsage, evaluateAlerts } from '../utils/usage-monitor.js'
 import type { UsageReport } from '../utils/usage-monitor.js'
 
@@ -125,9 +125,10 @@ async function scrapeAndAlert(): Promise<void> {
     const alerts = evaluateAlerts(report)
 
     if (alerts.hasAlerts) {
-      for (const project of config.projects) {
-        await notifyUsageAlert(alerts, report, project.channelId)
-      }
+      // 閾値超過時のリアルタイムアラートは削除（18時の日次サマリーのみ）
+      const claudeSession = report.claude?.claude?.session?.usagePercent ?? '?'
+      const codexPct = report.codex?.codex?.usagePercent ?? '?'
+      log.warn(`Usage alert detected: Claude session=${claudeSession}%, Codex=${codexPct}%`)
     } else {
       const claudeSession = report.claude?.claude?.session?.usagePercent ?? '?'
       const codexPct = report.codex?.codex?.usagePercent ?? '?'
@@ -149,6 +150,22 @@ async function reportUsage(): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     log.error(`Usage report failed: ${message}`)
+  }
+}
+
+async function reportDailyUsageStatus(): Promise<void> {
+  log.info('Daily usage status report triggered')
+  try {
+    const report = await scrapeUsage()
+    for (const project of config.projects) {
+      const alertChannelId = project.alertChannelId
+      if (alertChannelId) {
+        await notifyDailyUsageStatus(report, alertChannelId)
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.error(`Daily usage status report failed: ${message}`)
   }
 }
 
@@ -192,6 +209,16 @@ export function startScheduler(): void {
   )
   tasks.set('usage-report', usageReportTask)
   log.info(`Usage report scheduled: ${config.usageMonitor.reportSchedule}`)
+
+  const dailyUsageStatusTask = cron.schedule(
+    config.cron.dailyUsageStatusSchedule,
+    () => {
+      void reportDailyUsageStatus()
+    },
+    { timezone: 'Asia/Tokyo' },
+  )
+  tasks.set('daily-usage-status', dailyUsageStatusTask)
+  log.info(`Daily usage status scheduled: ${config.cron.dailyUsageStatusSchedule}`)
 }
 
 export function stopScheduler(): void {
@@ -207,6 +234,7 @@ export function getScheduledTasks(): { name: string; schedule: string }[] {
     { name: 'status-report', schedule: config.cron.reportSchedule },
     { name: 'usage-scrape', schedule: config.usageMonitor.scrapeSchedule },
     { name: 'usage-report', schedule: config.usageMonitor.reportSchedule },
+    { name: 'daily-usage-status', schedule: config.cron.dailyUsageStatusSchedule },
   ]
 }
 

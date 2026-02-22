@@ -272,6 +272,118 @@ export async function notifyUsageAlert(
   log.warn(`Usage alert sent: ${fields.map((f) => f.name).join(', ')}`)
 }
 
+export async function notifyDailyUsageStatus(
+  report: UsageReport,
+  alertChannelId?: string,
+): Promise<void> {
+  const channel = await getChannel(alertChannelId)
+  if (!channel) return
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = []
+  const descriptionParts: string[] = []
+
+  // Claude の状況
+  if (report.claude?.claude) {
+    const c = report.claude.claude
+
+    if (c.weekly?.models && c.weekly.models.length > 0) {
+      for (const m of c.weekly.models) {
+        if (m.usagePercent !== undefined && m.usagePercent >= 80) {
+          // ペース超過時のみタイトルに含める
+          descriptionParts.push(`${m.model} ペース超過`)
+        }
+      }
+    }
+
+    const statusParts: string[] = []
+
+    if (c.session) {
+      const sessionStatus = c.session.rateLimited
+        ? '🔴 制限中'
+        : `${c.session.usagePercent}% 使用中`
+      statusParts.push(`セッション: ${sessionStatus}${c.session.remaining ? ` (${c.session.remaining})` : ''}`)
+    }
+
+    if (c.weekly?.models && c.weekly.models.length > 0) {
+      for (const m of c.weekly.models) {
+        const pct = m.usagePercent !== undefined ? `${m.usagePercent}%` : '?%'
+        let detail = `${m.model}: ${pct} 使用`
+
+        // Sonnet の場合、日数とペース目安を表示
+        if (m.model === 'Sonnet' && c.weekly.dayOfWeek !== undefined) {
+          const dayOfWeek = c.weekly.dayOfWeek + 1
+          const pace = Math.round((m.usagePercent ?? 0) / dayOfWeek)
+          detail += `（${dayOfWeek}日目、ペース目安 ${pace}%）`
+        }
+        statusParts.push(detail)
+      }
+    }
+
+    fields.push({
+      name: 'Claude Max',
+      value: statusParts.length > 0 ? statusParts.join('\n') : 'データなし',
+      inline: false,
+    })
+  } else if (report.claude?.error) {
+    fields.push({
+      name: 'Claude Max',
+      value: `⚠️ ${report.claude.error}`,
+      inline: false,
+    })
+  } else {
+    fields.push({
+      name: 'Claude Max',
+      value: 'データ取得失敗',
+      inline: false,
+    })
+  }
+
+  // Codex の状況
+  if (report.codex?.codex) {
+    const cx = report.codex.codex
+
+    // Codex がペース超過の場合
+    if (cx.usagePercent !== undefined && cx.usagePercent >= 50) {
+      descriptionParts.push('Codex ペース超過')
+    }
+
+    let codexDetail = `Codex: ${cx.usagePercent ?? '?'}% 使用`
+    if (cx.usagePercent !== undefined) {
+      const remaining = 100 - cx.usagePercent
+      codexDetail += ` (残り ${remaining}%)`
+    }
+
+    fields.push({
+      name: 'OpenAI Codex',
+      value: codexDetail,
+      inline: false,
+    })
+  } else if (report.codex?.error) {
+    fields.push({
+      name: 'OpenAI Codex',
+      value: `⚠️ ${report.codex.error}`,
+      inline: false,
+    })
+  } else {
+    fields.push({
+      name: 'OpenAI Codex',
+      value: 'データ取得失敗',
+      inline: false,
+    })
+  }
+
+  const description = descriptionParts.length > 0 ? descriptionParts.join('\n') : undefined
+  const color = descriptionParts.length > 0 ? COLORS.warning : COLORS.info
+  const embed = createEmbed(color, 'LLM 使用量アラート', {
+    description,
+    fields,
+    footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  })
+
+  await channel.send({ embeds: [embed] })
+  log.info('Daily usage status sent to Discord')
+}
+
 // --- Thread 管理 + リアルタイム進捗 ---
 
 export interface IssueThreadContext {

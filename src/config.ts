@@ -52,6 +52,7 @@ export interface ProjectConfig {
   repo: string
   localPath: string
   chatModel?: ChatModel
+  alertChannelId?: string
 }
 
 function loadProjects(): ProjectConfig[] {
@@ -94,6 +95,7 @@ export const config = {
   cron: {
     schedule: optional('CRON_SCHEDULE', '0 1 * * *'),
     reportSchedule: optional('CRON_REPORT_SCHEDULE', '0 9 * * *'),
+    dailyUsageStatusSchedule: optional('CRON_DAILY_USAGE_STATUS_SCHEDULE', '0 18 * * *'),
   },
   queue: {
     dataDir: optional('QUEUE_DATA_DIR', './data'),
