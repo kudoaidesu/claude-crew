@@ -1,4 +1,5 @@
 import { appendFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { config } from '../config.js'
 import { createLogger } from './logger.js'
@@ -144,16 +145,50 @@ async function createBrowserContext(): Promise<BrowserContext> {
     mkdirSync(userDataDir, { recursive: true })
   }
 
-  return chromium.launchPersistentContext(userDataDir, {
+  const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
       '--window-size=1,1',
-      '--window-position=-9999,-9999',
+      '--window-position=0,0',
     ],
     timeout: config.usageMonitor.timeoutMs,
   })
+
+  // macOS: Chromium ウィンドウを裏に回してフォーカスを奪わない
+  minimizeBrowserWindow()
+
+  return context
+}
+
+/** macOS: Playwright Chromium ウィンドウを非表示にしてフォーカスを奪わないようにする */
+function minimizeBrowserWindow(): void {
+  if (process.platform !== 'darwin') return
+
+  // 少し待ってからウィンドウを非表示（起動直後はまだウィンドウが出来ていない）
+  setTimeout(() => {
+    // Playwright の Chromium は "Google Chrome for Testing" というプロセス名
+    const script = `
+      tell application "System Events"
+        set targetNames to {"Google Chrome for Testing", "Chromium", "Google Chrome"}
+        repeat with pName in targetNames
+          if exists (process pName) then
+            set visible of process pName to false
+            return "hidden: " & pName
+          end if
+        end repeat
+        return "no chrome process found"
+      end tell
+    `
+    execFile('osascript', ['-e', script], (err, stdout) => {
+      if (err) {
+        log.warn(`Failed to hide browser window: ${err.message}`)
+      } else {
+        log.info(`Browser window: ${stdout.trim()}`)
+      }
+    })
+  }, 1500)
 }
 
 // --- Scraping ---
