@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron'
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
-import { dequeue, getStats, updateStatus } from './processor.js'
+import { dequeue, getStats, updateStatus, markForRetry } from './processor.js'
 import { acquireLock, releaseLock, isDailyBudgetExceeded } from './rate-limiter.js'
 import { getDailyCost, getCostReport } from '../utils/cost-tracker.js'
 import { notifyCostReport, notifyCostAlert } from '../bot/notifier.js'
@@ -10,7 +10,7 @@ const log = createLogger('scheduler')
 
 const tasks = new Map<string, ScheduledTask>()
 
-export type QueueProcessHandler = (issueNumber: number, repository: string) => Promise<void>
+export type QueueProcessHandler = (issueNumber: number, repository: string, queueItemId: string) => Promise<void>
 
 let processHandler: QueueProcessHandler | null = null
 
@@ -66,13 +66,17 @@ async function processQueue(): Promise<void> {
 
       if (processHandler) {
         try {
-          await processHandler(item.issueNumber, item.repository)
+          await processHandler(item.issueNumber, item.repository, item.id)
           updateStatus(item.id, 'completed')
           log.info(`Issue #${item.issueNumber} completed`)
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
-          updateStatus(item.id, 'failed', message)
-          log.error(`Issue #${item.issueNumber} failed: ${message}`)
+          const willRetry = markForRetry(item.id, message)
+          if (willRetry) {
+            log.warn(`Issue #${item.issueNumber} failed, scheduled for retry: ${message}`)
+          } else {
+            log.error(`Issue #${item.issueNumber} failed permanently: ${message}`)
+          }
         }
       } else {
         log.warn('No process handler registered. Skipping item.')

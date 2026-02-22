@@ -56,6 +56,8 @@ export const config = {
     maxBatchSize: Number(optional('QUEUE_MAX_BATCH_SIZE', '5')),
     cooldownMs: Number(optional('QUEUE_COOLDOWN_MS', '60000')),
     dailyBudgetUsd: Number(optional('QUEUE_DAILY_BUDGET_USD', '20')),
+    maxRetries: Number(optional('QUEUE_MAX_RETRIES', '2')),
+    retryBaseMs: Number(optional('QUEUE_RETRY_BASE_MS', '300000')),
   },
   coder: {
     maxBudgetUsd: Number(optional('CODER_MAX_BUDGET_USD', '5')),
