@@ -145,11 +145,12 @@ async function createBrowserContext(): Promise<BrowserContext> {
   }
 
   return chromium.launchPersistentContext(userDataDir, {
-    headless: true,
-    channel: 'chrome',
+    headless: false,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
+      '--window-size=1,1',
+      '--window-position=-9999,-9999',
     ],
     timeout: config.usageMonitor.timeoutMs,
   })
@@ -161,9 +162,12 @@ async function scrapeClaudeUsage(page: Page): Promise<UsageSnapshot> {
   const timestamp = new Date().toISOString()
   try {
     await page.goto(config.usageMonitor.claudeUsageUrl, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: config.usageMonitor.timeoutMs,
     })
+
+    // SPA のレンダリング待ち
+    await page.waitForTimeout(8000)
 
     if (page.url().includes('/login')) {
       return {
@@ -173,8 +177,6 @@ async function scrapeClaudeUsage(page: Page): Promise<UsageSnapshot> {
         error: '認証切れ — npm run setup:usage で再ログインしてください',
       }
     }
-
-    await page.waitForTimeout(3000)
 
     const raw = await page.evaluate(() => {
       const main = document.querySelector('main') ?? document.body
@@ -194,9 +196,12 @@ async function scrapeCodexUsage(page: Page): Promise<UsageSnapshot> {
   const timestamp = new Date().toISOString()
   try {
     await page.goto(config.usageMonitor.codexUsageUrl, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: config.usageMonitor.timeoutMs,
     })
+
+    // SPA のレンダリング待ち
+    await page.waitForTimeout(8000)
 
     if (page.url().includes('/auth/login') || page.url().includes('/login')) {
       return {
@@ -206,8 +211,6 @@ async function scrapeCodexUsage(page: Page): Promise<UsageSnapshot> {
         error: '認証切れ — npm run setup:usage で再ログインしてください',
       }
     }
-
-    await page.waitForTimeout(3000)
 
     const raw = await page.evaluate(() => {
       const main = document.querySelector('main') ?? document.body
@@ -224,113 +227,104 @@ async function scrapeCodexUsage(page: Page): Promise<UsageSnapshot> {
 }
 
 // --- Parsing ---
+//
+// 実ページ例 (Claude, 日本語):
+//   現在のセッション\n4時間8分後にリセット\n10% 使用済み\n
+//   すべてのモデル\n16:00 (日)にリセット\n4% 使用済み\n
+//   Sonnetのみ\n15:00 (水)にリセット\n38% 使用済み
+//
+// 実ページ例 (Codex, 日本語):
+//   5時間の使用制限\n99%\n残り\nリセット：2026/02/23 0:30\n
+//   週あたりの使用制限\n26%\n残り\nリセット：2026/02/25 9:16
 
 function parseClaudeUsage(raw: string): ClaudeParsed {
   let session: SessionLimit | null = null
   let weekly: WeeklyLimit | null = null
 
-  const lowerRaw = raw.toLowerCase()
-
   // --- Session parsing ---
-  // Look for "current session" section, rate-limited indicators, remaining time
-  const rateLimited =
-    lowerRaw.includes('rate limit') ||
-    lowerRaw.includes('limit reached') ||
-    lowerRaw.includes('usage limit') ||
-    lowerRaw.includes('you\'ve hit')
-
-  // Match remaining time like "4h 32m remaining" or "2 hours remaining"
-  const remainingMatch = raw.match(
-    /(\d+h?\s*\d*m?\s*(?:hour|minute|min|hr|h|m)?\w*)\s*remaining/i,
+  // 「現在のセッション」〜 次のセクションまでを切り出し
+  const sessionMatch = raw.match(
+    /(?:現在のセッション|current\s+session)([\s\S]*?)(?=\n(?:週間|weekly|すべて|all\s+model|sonnet|opus)|$)/i,
   )
-  const remaining = remainingMatch ? remainingMatch[1].trim() : undefined
 
-  // Match session percentage
-  const sessionPercentMatch = raw.match(
-    /(?:current\s+session|session\s+limit)[^]*?(\d{1,3})\s*%/i,
-  )
-  const sessionPercent = sessionPercentMatch
-    ? Number(sessionPercentMatch[1])
-    : rateLimited
-      ? 100
-      : undefined
+  if (sessionMatch) {
+    const block = sessionMatch[1]
 
-  if (sessionPercent !== undefined || rateLimited || remaining) {
-    session = {
-      usagePercent: sessionPercent ?? (rateLimited ? 100 : 0),
-      remaining,
-      rateLimited,
-    }
+    // "10% 使用済み" or "10% used"
+    const percentMatch = block.match(/(\d{1,3})\s*%/)
+    const usagePercent = percentMatch ? Number(percentMatch[1]) : 0
+
+    // "4時間8分後にリセット" or "Resets in 4h 8m"
+    const remainingJa = block.match(/(\d+時間\d*分?)後/)
+    const remainingEn = block.match(/([\dh\sm]+)\s*(?:remaining|left)/i)
+    const remaining = remainingJa?.[1] ?? remainingEn?.[1]?.trim()
+
+    const rateLimited =
+      usagePercent >= 100 ||
+      block.includes('制限') ||
+      block.toLowerCase().includes('limit reached')
+
+    session = { usagePercent, remaining, rateLimited }
   }
 
   // --- Weekly parsing ---
-  // Match reset info like "resets on Monday" or "resets Feb 24"
-  const resetMatch = raw.match(/resets?\s+(?:on\s+)?(.+?)(?:\.|$|\n)/i)
-  const resetAt = resetMatch ? resetMatch[1].trim() : undefined
-
-  // Match model-specific usage: "Sonnet 4: 12h of 140-280h" or "Opus 4: 5h of 15-35h"
   const models: WeeklyModelUsage[] = []
 
-  const modelPatterns = [
-    /(?:claude\s+)?(?:sonnet|claude\s*4\.5\s*sonnet|sonnet\s*4)[^]*?(\d+\.?\d*h?\s*(?:of|\/)\s*[\d\-–]+h?)/gi,
-    /(?:claude\s+)?(?:opus|claude\s*4\s*opus|opus\s*4)[^]*?(\d+\.?\d*h?\s*(?:of|\/)\s*[\d\-–]+h?)/gi,
-  ]
-
-  for (const pattern of modelPatterns) {
-    const match = pattern.exec(raw)
-    if (match) {
-      const modelName = pattern.source.includes('sonnet') ? 'Sonnet' : 'Opus'
-      const usageText = match[1]
-
-      // Try to extract percentage from usage text like "12h of 140h" → 12/140 = 8.6%
-      const numbersMatch = usageText.match(/(\d+\.?\d*)\s*h?\s*(?:of|\/)\s*(\d+)/i)
-      let usagePercent: number | undefined
-      if (numbersMatch) {
-        const used = Number(numbersMatch[1])
-        const total = Number(numbersMatch[2])
-        if (total > 0) {
-          usagePercent = Math.round((used / total) * 100)
-        }
-      }
-
-      models.push({ model: modelName, usageText, usagePercent })
+  // 「すべてのモデル」(= Opus 含む全モデル) セクション
+  const allModelsMatch = raw.match(
+    /(?:すべてのモデル|all\s+model)([\s\S]*?)(?=\n(?:sonnet|opus|最終|追加|$))/i,
+  )
+  if (allModelsMatch) {
+    const block = allModelsMatch[1]
+    const pct = block.match(/(\d{1,3})\s*%/)
+    if (pct) {
+      models.push({ model: 'All', usagePercent: Number(pct[1]) })
     }
   }
 
-  // Also try generic percentage matches for models
-  const allPercentMatches = [...raw.matchAll(/(\d{1,3})\s*%/g)]
-  // Skip session percent, look for others
-  for (const m of allPercentMatches) {
-    const idx = m.index ?? 0
-    const context = raw.slice(Math.max(0, idx - 60), idx + 20).toLowerCase()
-    if (context.includes('sonnet') && !models.some((mo) => mo.model === 'Sonnet')) {
-      models.push({ model: 'Sonnet', usagePercent: Number(m[1]) })
-    }
-    if (context.includes('opus') && !models.some((mo) => mo.model === 'Opus')) {
-      models.push({ model: 'Opus', usagePercent: Number(m[1]) })
+  // 「Sonnetのみ」セクション
+  const sonnetMatch = raw.match(
+    /(?:sonnet(?:のみ)?)([\s\S]*?)(?=\n(?:opus|最終|追加|$))/i,
+  )
+  if (sonnetMatch) {
+    const block = sonnetMatch[1]
+    const pct = block.match(/(\d{1,3})\s*%/)
+    if (pct) {
+      models.push({ model: 'Sonnet', usagePercent: Number(pct[1]) })
     }
   }
 
-  // Determine day of week from reset info
+  // 「Opusのみ」セクション（存在する場合）
+  const opusMatch = raw.match(
+    /(?:opus(?:のみ)?)([\s\S]*?)(?=\n(?:sonnet|最終|追加|$))/i,
+  )
+  if (opusMatch) {
+    const block = opusMatch[1]
+    const pct = block.match(/(\d{1,3})\s*%/)
+    if (pct) {
+      models.push({ model: 'Opus', usagePercent: Number(pct[1]) })
+    }
+  }
+
+  // リセット日時: "16:00 (日)にリセット" — 最初の週間セクションから取得
+  const resetMatch = raw.match(
+    /(?:すべてのモデル|all\s+model)[\s\S]*?(\d{1,2}:\d{2}\s*\([日月火水木金土]\))にリセット/i,
+  ) ?? raw.match(/resets?\s+(?:on\s+)?(.+?)(?:\.|$|\n)/i)
+  const resetAt = resetMatch ? resetMatch[1].trim() : undefined
+
+  // 曜日から経過日数を計算
   let dayOfWeek: number | undefined
-  if (resetAt) {
-    const daysMap: Record<string, number> = {
-      monday: 0, tuesday: 1, wednesday: 2, thursday: 3,
-      friday: 4, saturday: 5, sunday: 6,
+  const jpDayMatch = resetAt?.match(/\(([日月火水木金土])\)/)
+  if (jpDayMatch) {
+    const jpDays: Record<string, number> = {
+      '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6,
     }
-    const dayMatch = resetAt.toLowerCase().match(
-      /monday|tuesday|wednesday|thursday|friday|saturday|sunday/,
-    )
-    if (dayMatch) {
-      const resetDay = daysMap[dayMatch[0]]
-      const now = new Date()
-      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
-      const currentDay = jstNow.getUTCDay() // 0=Sun
-      // Convert to days since reset
-      // If reset is Monday (1), and today is Wednesday (3), dayOfWeek = 2
-      const resetDayNum = (resetDay + 1) % 7 // Convert our 0=Mon to JS 0=Sun
-      dayOfWeek = (currentDay - resetDayNum + 7) % 7
-    }
+    const resetDayNum = jpDays[jpDayMatch[1]] ?? 0
+    const now = new Date()
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+    const currentDay = jstNow.getUTCDay() // 0=Sun
+    dayOfWeek = (currentDay - resetDayNum + 7) % 7
+    if (dayOfWeek === 0) dayOfWeek = 7 // リセット当日 = 7日目（週末）
   }
 
   if (resetAt || models.length > 0) {
@@ -341,28 +335,51 @@ function parseClaudeUsage(raw: string): ClaudeParsed {
 }
 
 function parseCodexUsage(raw: string): CodexParsed {
-  // Match patterns like "12 of 50 tasks" or "12/50"
-  const taskMatch = raw.match(/(\d+)\s*(?:of|\/)\s*(\d+)\s*(?:task|message)/i)
   let usageText: string | undefined
   let usagePercent: number | undefined
+  let resetAt: string | undefined
 
-  if (taskMatch) {
-    usageText = `${taskMatch[1]} / ${taskMatch[2]}`
-    const used = Number(taskMatch[1])
-    const total = Number(taskMatch[2])
-    if (total > 0) {
-      usagePercent = Math.round((used / total) * 100)
+  // 「5時間の使用制限」セクション — セッション的な制限
+  // 「週あたりの使用制限」セクション — 週間制限
+  // 両方にパーセンテージがある。週間の方をメインに使う
+
+  // 週間制限を優先的に取得
+  const weeklyMatch = raw.match(
+    /(?:週あたりの使用制限|weekly\s+usage\s+limit)([\s\S]*?)(?=\n(?:コードレビュー|code\s*review|残りのクレジット|$))/i,
+  )
+  if (weeklyMatch) {
+    const block = weeklyMatch[1]
+    const pct = block.match(/(\d{1,3})\s*%/)
+    if (pct) {
+      // Codex の表示は「残り」パーセント。使用率に変換
+      usagePercent = 100 - Number(pct[1])
+      usageText = `${usagePercent}% 使用済み (残り ${pct[1]}%)`
+    }
+    const resetMatch = block.match(/リセット[：:]\s*(.+?)(?:\n|$)/)
+      ?? block.match(/resets?\s*[：:]?\s*(.+?)(?:\n|$)/i)
+    if (resetMatch) {
+      resetAt = resetMatch[1].trim()
     }
   }
 
-  // Fallback: generic percentage
+  // 週間が取れなかったらフォールバック: 最初のパーセンテージ
   if (usagePercent === undefined) {
-    const percentMatch = raw.match(/(\d{1,3})\s*%/)
-    usagePercent = percentMatch ? Number(percentMatch[1]) : undefined
+    const pct = raw.match(/(\d{1,3})\s*%/)
+    if (pct) {
+      // 「残り」表示かどうかを確認
+      const isRemaining = raw.includes('残り') || raw.toLowerCase().includes('remaining')
+      usagePercent = isRemaining ? 100 - Number(pct[1]) : Number(pct[1])
+    }
   }
 
-  const resetMatch = raw.match(/resets?\s+(?:on\s+|at\s+)?(.+?)(?:\.|$|\n)/i)
-  const resetAt = resetMatch ? resetMatch[1].trim() : undefined
+  // リセット日時
+  if (!resetAt) {
+    const resetMatch = raw.match(/リセット[：:]\s*(.+?)(?:\n|$)/)
+      ?? raw.match(/resets?\s*[：:]?\s*(.+?)(?:\n|$)/i)
+    if (resetMatch) {
+      resetAt = resetMatch[1].trim()
+    }
+  }
 
   return { usageText, usagePercent, resetAt, raw }
 }
