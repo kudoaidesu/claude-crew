@@ -4,7 +4,7 @@ import { createLogger } from '../utils/logger.js'
 import { dequeue, getStats, updateStatus, markForRetry } from './processor.js'
 import { acquireLock, releaseLock, isDailyBudgetExceeded } from './rate-limiter.js'
 import { getDailyCost, getCostReport } from '../utils/cost-tracker.js'
-import { notifyCostReport, notifyCostAlert, notifyUsageReport } from '../bot/notifier.js'
+import { notifyCostReport, notifyCostAlert, notifyUsageReport, notifyUsageAlert } from '../bot/notifier.js'
 import { scrapeUsage } from '../utils/usage-monitor.js'
 import type { UsageReport } from '../utils/usage-monitor.js'
 
@@ -118,8 +118,30 @@ async function reportStatus(): Promise<void> {
   }
 }
 
-async function monitorUsage(): Promise<void> {
-  log.info('Usage monitor triggered')
+async function scrapeAndAlert(): Promise<void> {
+  log.info('Usage scrape triggered')
+  try {
+    const report = await scrapeUsage()
+    const threshold = config.usageMonitor.alertThreshold
+
+    const claudePercent = report.claude?.parsed?.usagePercent ?? 0
+    const codexPercent = report.codex?.parsed?.usagePercent ?? 0
+
+    if (claudePercent >= threshold || codexPercent >= threshold) {
+      for (const project of config.projects) {
+        await notifyUsageAlert(report, threshold, project.channelId)
+      }
+    } else {
+      log.info(`Usage within limits: Claude=${claudePercent}%, Codex=${codexPercent}%`)
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.error(`Usage scrape failed: ${message}`)
+  }
+}
+
+async function reportUsage(): Promise<void> {
+  log.info('Daily usage report triggered')
   try {
     const report = await scrapeUsage()
     for (const project of config.projects) {
@@ -127,7 +149,7 @@ async function monitorUsage(): Promise<void> {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    log.error(`Usage monitor failed: ${message}`)
+    log.error(`Usage report failed: ${message}`)
   }
 }
 
@@ -152,15 +174,25 @@ export function startScheduler(): void {
   tasks.set('status-report', reportTask)
   log.info(`Status report scheduled: ${config.cron.reportSchedule}`)
 
-  const usageTask = cron.schedule(
-    config.usageMonitor.cronSchedule,
+  const usageScrapeTask = cron.schedule(
+    config.usageMonitor.scrapeSchedule,
     () => {
-      void monitorUsage()
+      void scrapeAndAlert()
     },
     { timezone: 'Asia/Tokyo' },
   )
-  tasks.set('usage-monitor', usageTask)
-  log.info(`Usage monitor scheduled: ${config.usageMonitor.cronSchedule}`)
+  tasks.set('usage-scrape', usageScrapeTask)
+  log.info(`Usage scrape scheduled: ${config.usageMonitor.scrapeSchedule}`)
+
+  const usageReportTask = cron.schedule(
+    config.usageMonitor.reportSchedule,
+    () => {
+      void reportUsage()
+    },
+    { timezone: 'Asia/Tokyo' },
+  )
+  tasks.set('usage-report', usageReportTask)
+  log.info(`Usage report scheduled: ${config.usageMonitor.reportSchedule}`)
 }
 
 export function stopScheduler(): void {
@@ -174,7 +206,8 @@ export function getScheduledTasks(): { name: string; schedule: string }[] {
   return [
     { name: 'queue-process', schedule: config.cron.schedule },
     { name: 'status-report', schedule: config.cron.reportSchedule },
-    { name: 'usage-monitor', schedule: config.usageMonitor.cronSchedule },
+    { name: 'usage-scrape', schedule: config.usageMonitor.scrapeSchedule },
+    { name: 'usage-report', schedule: config.usageMonitor.reportSchedule },
   ]
 }
 

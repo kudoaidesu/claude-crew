@@ -199,13 +199,50 @@ export async function notifyUsageReport(
     (report.codex?.parsed?.usagePercent ?? 0) >= 80
   const color = hasErrors ? COLORS.error : highUsage ? COLORS.warning : COLORS.info
 
-  const embed = createEmbed(color, 'LLM 使用量レポート', {
+  const embed = createEmbed(color, 'LLM 使用量レポート（日次）', {
     fields,
     footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
   })
 
   await channel.send({ embeds: [embed] })
-  log.info('Usage report sent to Discord')
+  log.info('Daily usage report sent to Discord')
+}
+
+export async function notifyUsageAlert(
+  report: UsageReport,
+  threshold: number,
+  channelId?: string,
+): Promise<void> {
+  const channel = await getChannel(channelId)
+  if (!channel) return
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = []
+
+  if ((report.claude?.parsed?.usagePercent ?? 0) >= threshold) {
+    fields.push({
+      name: `Claude (Max) — ${report.claude?.parsed?.usagePercent}%`,
+      value: formatUsageSnapshot(report.claude),
+      inline: false,
+    })
+  }
+
+  if ((report.codex?.parsed?.usagePercent ?? 0) >= threshold) {
+    fields.push({
+      name: `OpenAI Codex — ${report.codex?.parsed?.usagePercent}%`,
+      value: formatUsageSnapshot(report.codex),
+      inline: false,
+    })
+  }
+
+  if (fields.length === 0) return
+
+  const embed = createEmbed(COLORS.warning, `LLM 使用量アラート（${threshold}% 超過）`, {
+    fields,
+    footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  })
+
+  await channel.send({ embeds: [embed] })
+  log.warn(`Usage alert sent: threshold=${threshold}%`)
 }
 
 // --- Thread 管理 + リアルタイム進捗 ---

@@ -65,7 +65,9 @@ export const config = {
     timeoutMs: Number(optional('CODER_TIMEOUT_MS', String(30 * 60 * 1000))),
   },
   usageMonitor: {
-    cronSchedule: optional('USAGE_MONITOR_SCHEDULE', '0 */6 * * *'),
+    scrapeSchedule: optional('USAGE_SCRAPE_SCHEDULE', '*/20 * * * *'),
+    reportSchedule: optional('USAGE_REPORT_SCHEDULE', '0 9 * * *'),
+    alertThreshold: Number(optional('USAGE_ALERT_THRESHOLD', '80')),
     chromeUserDataDir: optional(
       'USAGE_CHROME_USER_DATA_DIR',
       './data/chrome-usage-profile',
