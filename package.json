@@ -1,5 +1,5 @@
 {
-  "name": "issue-ai-bot",
+  "name": "claude-crew",
   "version": "0.1.0",
   "description": "Issue駆動 × AI駆動の自律型開発ワークフロー",
   "type": "module",

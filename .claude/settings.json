@@ -41,6 +41,8 @@
       "Bash(lsof:*)",
       "Bash(du:*)",
       "Bash(df:*)",
+      "Bash(launchctl:*)",
+      "Bash(readlink:*)",
       "Edit",
       "Write",
       "Read",
