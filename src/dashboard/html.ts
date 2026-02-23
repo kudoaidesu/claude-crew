@@ -74,7 +74,6 @@ export function renderDashboard(channels: ChannelInfo[]): string {
   <span style="color:#64748b;font-size:13px;">ダッシュボード</span>
   <nav>
     <button class="active" onclick="showTab('chat')">💬 チャット履歴</button>
-    <button onclick="showTab('costs')">💰 コスト</button>
     <button onclick="showTab('audit')">🔍 監査ログ</button>
   </nav>
 </header>
@@ -88,9 +87,6 @@ export function renderDashboard(channels: ChannelInfo[]): string {
       <div id="chat-area" class="messages">
         <div class="empty">👆 左のチャンネルを選択してください</div>
       </div>
-    </div>
-    <div id="tab-costs" class="tab-content">
-      <div id="costs-area"><div class="loading">読み込み中...</div></div>
     </div>
     <div id="tab-audit" class="tab-content">
       <div class="limit-selector">
@@ -111,7 +107,6 @@ function showTab(name) {
   document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'))
   document.getElementById('tab-' + name).classList.add('active')
   event.target.classList.add('active')
-  if (name === 'costs') loadCosts()
   if (name === 'audit') loadAudit()
 }
 
@@ -142,40 +137,6 @@ function loadConversation(guildId, channelId) {
           '</div>'
       }).join('')
       area.scrollTop = area.scrollHeight
-    })
-    .catch(() => { area.innerHTML = '<div class="empty">エラーが発生しました</div>' })
-}
-
-function loadCosts() {
-  const area = document.getElementById('costs-area')
-  area.innerHTML = '<div class="loading">読み込み中...</div>'
-  fetch('/api/costs')
-    .then(r => r.json())
-    .then(data => {
-      const barWidth = Math.min(data.dailyBudgetUsedPercent, 100).toFixed(1)
-      let html = '<div class="stats-grid">' +
-        '<div class="stat-card"><div class="stat-label">今日</div><div class="stat-value">$' + data.today.toFixed(2) + '</div>' +
-        '<div class="stat-sub">日次予算消化率</div>' +
-        '<div class="progress-bar"><div class="progress-fill" style="width:' + barWidth + '%"></div></div>' +
-        '<div class="stat-sub" style="margin-top:4px">' + data.dailyBudgetUsedPercent.toFixed(1) + '%</div></div>' +
-        '<div class="stat-card"><div class="stat-label">今週</div><div class="stat-value">$' + data.thisWeek.toFixed(2) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-label">今月</div><div class="stat-value">$' + data.thisMonth.toFixed(2) + '</div></div>' +
-        '</div>'
-
-      if (data.recentEntries && data.recentEntries.length > 0) {
-        html += '<div class="section-title">直近の処理</div>' +
-          '<table><thead><tr><th>日時</th><th>Issue</th><th>リポジトリ</th><th>コスト</th><th>時間</th><th>結果</th></tr></thead><tbody>' +
-          data.recentEntries.map(e => {
-            const t = new Date(e.timestamp).toLocaleString('ja-JP', {timeZone: 'Asia/Tokyo'})
-            const dur = (e.durationMs / 1000).toFixed(1) + 's'
-            const badge = e.success ? '<span class="badge badge-success">成功</span>' : '<span class="badge badge-error">失敗</span>'
-            return '<tr><td>' + t + '</td><td>#' + e.issueNumber + '</td><td>' + e.repository + '</td><td>$' + e.costUsd.toFixed(4) + '</td><td>' + dur + '</td><td>' + badge + '</td></tr>'
-          }).join('') +
-          '</tbody></table>'
-      } else {
-        html += '<div class="empty">コスト履歴がありません</div>'
-      }
-      area.innerHTML = html
     })
     .catch(() => { area.innerHTML = '<div class="empty">エラーが発生しました</div>' })
 }

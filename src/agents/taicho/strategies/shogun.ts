@@ -33,22 +33,17 @@ export class ShogunStrategy implements CodingStrategy {
   readonly name = 'shogun'
 
   async execute(ctx: CodingContext): Promise<CodingResult> {
-    let totalCost = 0
-    const budgetAlloc = this.allocateBudget(config.taicho.maxBudgetUsd)
-
     // Phase 1: 軍師の偵察（コードベース分析）
     log.info(`[軍師・偵察] Issue #${ctx.issue.number} のコードベースを分析中`)
     const reconResult = await runClaudeCli({
       prompt: this.buildGunshiReconPrompt(ctx),
       systemPrompt: GUNSHI_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budgetAlloc.gunshiRecon,
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.15,
       skipPermissions: true,
     })
-    totalCost += reconResult.costUsd ?? 0
     const reconReport = reconResult.content
 
     // Phase 2: 家老のタスク分解
@@ -57,36 +52,31 @@ export class ShogunStrategy implements CodingStrategy {
       prompt: this.buildKaroPrompt(ctx, reconReport),
       systemPrompt: KARO_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budgetAlloc.karo,
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.1,
       skipPermissions: true,
     })
-    totalCost += karoResult.costUsd ?? 0
 
     const tasks = this.parseKaroPlan(karoResult.content)
     log.info(`[家老・分解] ${tasks.length} タスクに分解完了`)
 
     // Phase 3: 足軽の実行（順次）
-    const ashigaruBudgetEach = budgetAlloc.ashigaru / Math.max(tasks.length, 1)
     let previousResults: string[] = []
 
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i]
       log.info(`[足軽${i + 1}] ${task.title} — 実行中`)
 
-      const ashigaruResult = await runClaudeCli({
+      await runClaudeCli({
         prompt: this.buildAshigaruPrompt(ctx, task, i + 1, tasks.length, previousResults),
         systemPrompt: ASHIGARU_SYSTEM_PROMPT,
         model: config.llm.model,
-        maxBudgetUsd: ashigaruBudgetEach,
         cwd: ctx.project.localPath,
         allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
         timeoutMs: config.taicho.timeoutMs * 0.25,
         skipPermissions: true,
       })
-      totalCost += ashigaruResult.costUsd ?? 0
 
       // 次の足軽に引き継ぐ要約
       previousResults.push(`足軽${i + 1} (${task.title}): 完了`)
@@ -94,28 +84,17 @@ export class ShogunStrategy implements CodingStrategy {
 
     // Phase 4: 軍師のレビュー（品質確認）
     log.info(`[軍師・検閲] 全実装のレビュー中`)
-    const reviewResult = await runClaudeCli({
+    await runClaudeCli({
       prompt: this.buildGunshiReviewPrompt(ctx),
       systemPrompt: GUNSHI_REVIEW_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budgetAlloc.gunshiReview,
       cwd: ctx.project.localPath,
       allowedTools: ['Bash', 'Read', 'Glob', 'Grep', 'Edit', 'Write'],
       timeoutMs: config.taicho.timeoutMs * 0.2,
       skipPermissions: true,
     })
-    totalCost += reviewResult.costUsd ?? 0
 
-    return { costUsd: totalCost }
-  }
-
-  private allocateBudget(totalBudget: number) {
-    return {
-      gunshiRecon: totalBudget * 0.1,   // 偵察: 10%
-      karo: totalBudget * 0.1,           // 分解: 10%
-      ashigaru: totalBudget * 0.65,      // 実行: 65%
-      gunshiReview: totalBudget * 0.15,  // 検閲: 15%
-    }
+    return {}
   }
 
   private buildGunshiReconPrompt(ctx: CodingContext): string {

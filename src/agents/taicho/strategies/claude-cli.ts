@@ -11,17 +11,16 @@ export class ClaudeCliStrategy implements CodingStrategy {
   readonly name = 'claude-cli'
 
   async execute(ctx: CodingContext): Promise<CodingResult> {
-    const result = await runClaudeCli({
+    await runClaudeCli({
       prompt: buildUserPrompt(ctx.issue),
       systemPrompt: TAICHO_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: config.taicho.maxBudgetUsd,
       cwd: ctx.project.localPath,
       allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs,
       skipPermissions: true,
     })
 
-    return { costUsd: result.costUsd }
+    return {}
   }
 }

@@ -3,7 +3,6 @@ import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
 import { COLORS, createEmbed, createQueueButtons, createPrButtons } from './theme.js'
 import type { ProgressData, ProgressStage } from '../agents/taicho/types.js'
-import type { CostReport } from '../utils/cost-tracker.js'
 import type { UsageReport, UsageSnapshot, UsageAlerts } from '../utils/usage-monitor.js'
 
 const log = createLogger('notifier')
@@ -448,9 +447,6 @@ function createProgressEmbed(data: ProgressData) {
   if (data.prUrl) {
     fields.push({ name: 'PR', value: data.prUrl })
   }
-  if (data.costUsd !== undefined) {
-    fields.push({ name: 'コスト', value: `$${data.costUsd.toFixed(2)}`, inline: true })
-  }
   if (data.durationMs !== undefined) {
     fields.push({ name: '所要時間', value: `${Math.round(data.durationMs / 1000)}秒`, inline: true })
   }
@@ -530,49 +526,3 @@ export async function updateProgress(
   }
 }
 
-// --- コストレポート + アラート ---
-
-export async function notifyCostReport(
-  costReport: CostReport,
-  queueStats: { pending: number; completed: number; failed: number },
-  channelId?: string,
-): Promise<void> {
-  const channel = await getChannel(channelId)
-  if (!channel) return
-
-  const repoBreakdown = costReport.byRepository
-    .map((r) => `  ${r.repository}: $${r.costUsd.toFixed(2)}`)
-    .join('\n')
-
-  const color = costReport.dailyBudgetUsedPercent >= 80 ? COLORS.warning : COLORS.info
-
-  const embed = createEmbed(color, 'デイリーレポート', {
-    fields: [
-      { name: '本日のコスト', value: `$${costReport.today.toFixed(2)}`, inline: true },
-      { name: '今週のコスト', value: `$${costReport.thisWeek.toFixed(2)}`, inline: true },
-      { name: '今月のコスト', value: `$${costReport.thisMonth.toFixed(2)}`, inline: true },
-      { name: '日次予算使用率', value: `${costReport.dailyBudgetUsedPercent.toFixed(0)}%`, inline: true },
-      { name: 'プロジェクト別', value: repoBreakdown || 'なし' },
-      { name: 'キュー状況', value: `待機: ${queueStats.pending} / 完了: ${queueStats.completed} / 失敗: ${queueStats.failed}` },
-    ],
-  })
-
-  await channel.send({ embeds: [embed] })
-  log.info('Daily cost report sent to Discord')
-}
-
-export async function notifyCostAlert(
-  currentCost: number,
-  budgetLimit: number,
-  channelId?: string,
-): Promise<void> {
-  const channel = await getChannel(channelId)
-  if (!channel) return
-
-  const embed = createEmbed(COLORS.error, 'コスト警告: 日次予算超過', {
-    description: `本日のコスト ($${currentCost.toFixed(2)}) が日次予算 ($${budgetLimit.toFixed(2)}) を超過しました。キュー処理を停止しています。`,
-  })
-
-  await channel.send({ embeds: [embed] })
-  log.warn(`Cost alert: $${currentCost.toFixed(2)} exceeds budget $${budgetLimit.toFixed(2)}`)
-}

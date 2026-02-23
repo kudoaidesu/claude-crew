@@ -158,20 +158,6 @@ export async function handleMessage(message: Message): Promise<void> {
           break
         }
 
-        case 'budget_exceeded': {
-          const queueItem = enqueue(issue.number, project.repo, 'high')
-          await message.reply(
-            `Issue #${issue.number} を作成しました。予算超過のため、キューに追加しました。\n${issue.htmlUrl}`,
-          )
-          if (queueItem) {
-            await notifyIssueCreated(
-              issue.number, issue.title, issue.htmlUrl, issue.labels,
-              project.channelId, queueItem.id,
-            )
-          }
-          break
-        }
-
         case 'no_handler': {
           const queueItem = enqueue(issue.number, project.repo, 'high')
           await message.reply(

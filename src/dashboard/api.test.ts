@@ -15,23 +15,11 @@ vi.mock('../config.js', () => {
       memory: { dataDir: dir },
       queue: {
         dataDir: dir,
-        dailyBudgetUsd: 20,
       },
       dashboard: { enabled: true, port: 3001, host: '127.0.0.1' },
     },
   }
 })
-
-vi.mock('../utils/cost-tracker.js', () => ({
-  getCostReport: () => ({
-    today: 1.23,
-    thisWeek: 4.56,
-    thisMonth: 12.34,
-    byRepository: [{ repository: 'test/repo', costUsd: 1.23 }],
-    recentEntries: [],
-    dailyBudgetUsedPercent: 6.15,
-  }),
-}))
 
 vi.mock('../utils/audit.js', () => ({
   getAuditLog: (limit: number) => [
@@ -39,7 +27,7 @@ vi.mock('../utils/audit.js', () => ({
   ].slice(0, limit),
 }))
 
-import { listChannels, getConversation, getCosts, getAudit } from './api.js'
+import { listChannels, getConversation, getAudit } from './api.js'
 
 describe('dashboard/api', () => {
   beforeEach(async () => {
@@ -103,16 +91,6 @@ describe('dashboard/api', () => {
       const result = getConversation('guild-1', 'no-channel')
       expect(result.messages).toEqual([])
       expect(result.total).toBe(0)
-    })
-  })
-
-  describe('getCosts()', () => {
-    it('コストレポートを返す', () => {
-      const report = getCosts()
-      expect(report.today).toBe(1.23)
-      expect(report.thisWeek).toBe(4.56)
-      expect(report.thisMonth).toBe(12.34)
-      expect(report.dailyBudgetUsedPercent).toBeCloseTo(6.15)
     })
   })
 

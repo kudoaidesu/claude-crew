@@ -54,7 +54,6 @@ describe('runClaudeSdk', () => {
 
     expect(result.sessionId).toBe('test-session-123')
     expect(result.content).toBe('Hello from SDK')
-    expect(result.costUsd).toBe(0.001)
   })
 
   it('should pass resume option to query', async () => {

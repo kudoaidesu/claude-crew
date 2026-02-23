@@ -22,60 +22,50 @@ export class OrchestratorWorkersStrategy implements CodingStrategy {
   readonly name = 'orchestrator-workers'
 
   async execute(ctx: CodingContext): Promise<CodingResult> {
-    let totalCost = 0
-
     // Phase 1: オーケストレーターがタスクを分解
     log.info(`[Phase 1] Orchestrator planning for Issue #${ctx.issue.number}`)
     const planResult = await runClaudeCli({
       prompt: this.buildPlannerPrompt(ctx),
       systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: config.taicho.maxBudgetUsd * 0.2, // 予算の20%を計画に
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.2,
       skipPermissions: true,
     })
-    totalCost += planResult.costUsd ?? 0
 
     const tasks = this.parsePlan(planResult.content)
     log.info(`[Phase 1] Orchestrator planned ${tasks.length} subtasks`)
 
     // Phase 2: ワーカーが各タスクを順次実行
-    const workerBudget = (config.taicho.maxBudgetUsd * 0.7) / Math.max(tasks.length, 1)
-
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i]
       log.info(`[Phase 2] Worker ${i + 1}/${tasks.length}: ${task.title}`)
 
-      const workerResult = await runClaudeCli({
+      await runClaudeCli({
         prompt: this.buildWorkerPrompt(ctx, task, i + 1, tasks.length),
         systemPrompt: WORKER_SYSTEM_PROMPT,
         model: config.llm.model,
-        maxBudgetUsd: workerBudget,
         cwd: ctx.project.localPath,
         allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
         timeoutMs: config.taicho.timeoutMs * 0.3,
         skipPermissions: true,
       })
-      totalCost += workerResult.costUsd ?? 0
     }
 
     // Phase 3: オーケストレーターが最終確認
     log.info(`[Phase 3] Orchestrator verifying result`)
-    const verifyResult = await runClaudeCli({
+    await runClaudeCli({
       prompt: this.buildVerifyPrompt(ctx),
       systemPrompt: VERIFY_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: config.taicho.maxBudgetUsd * 0.1,
       cwd: ctx.project.localPath,
       allowedTools: ['Bash', 'Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.2,
       skipPermissions: true,
     })
-    totalCost += verifyResult.costUsd ?? 0
 
-    return { costUsd: totalCost }
+    return {}
   }
 
   private buildPlannerPrompt(ctx: CodingContext): string {

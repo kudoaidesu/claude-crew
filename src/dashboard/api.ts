@@ -1,9 +1,7 @@
 import { readdirSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { config } from '../config.js'
-import { getCostReport } from '../utils/cost-tracker.js'
 import { getAuditLog } from '../utils/audit.js'
-import type { CostReport, CostEntry } from '../utils/cost-tracker.js'
 import type { AuditEntry } from '../utils/audit.js'
 
 export interface ConversationMessage {
@@ -91,12 +89,8 @@ export function getConversation(guildId: string, channelId: string, limit = 50):
   return { guildId, channelId, messages, total }
 }
 
-export function getCosts(): CostReport {
-  return getCostReport()
-}
-
 export function getAudit(limit = 100): AuditEntry[] {
   return getAuditLog(limit)
 }
 
-export type { CostReport, CostEntry, AuditEntry }
+export type { AuditEntry }
