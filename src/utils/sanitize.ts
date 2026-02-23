@@ -16,7 +16,7 @@ export interface ValidationResult {
   warnings: string[]
 }
 
-export function validateDiscordInput(text: string, maxLength = MAX_INPUT_LENGTH): ValidationResult {
+export function validateInput(text: string, maxLength = MAX_INPUT_LENGTH): ValidationResult {
   const warnings: string[] = []
 
   // 空入力チェック

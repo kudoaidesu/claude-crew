@@ -2,16 +2,27 @@
   "permissions": {
     "allow": [
       "mcp__serena__think_about_collected_information",
+      "mcp__playwright__*",
+      "mcp__context7__*",
       "Bash(gh api:*)",
       "Bash(npm:*)",
       "Bash(git:*)",
       "Bash(npx tsx:*)",
+      "Bash(npx:*)",
       "Bash(docker:*)",
+      "Bash(sleep:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm -f:*)",
+      "Bash(ifconfig:*)",
       "Edit",
       "Write",
       "Read",
       "Glob",
-      "Grep"
+      "Grep",
+      "WebFetch",
+      "WebSearch"
     ]
   },
   "hooks": {
