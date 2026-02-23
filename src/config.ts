@@ -53,6 +53,7 @@ export interface ProjectConfig {
   localPath: string
   chatModel?: ChatModel
   alertChannelId?: string
+  operationAlertChannelId?: string
 }
 
 function loadProjects(): ProjectConfig[] {
@@ -133,6 +134,10 @@ export const config = {
       model: 'haiku',
     },
     contextBudgetTokens: 2000,
+  },
+  session: {
+    ttlMs: Number(optional('SESSION_TTL_MS', String(24 * 60 * 60 * 1000))),
+    maxPerGuild: Number(optional('SESSION_MAX_PER_GUILD', '50')),
   },
   usageMonitor: {
     scrapeSchedule: optional('USAGE_SCRAPE_SCHEDULE', '*/20 * * * *'),
