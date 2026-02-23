@@ -119,8 +119,27 @@ export async function handleGuildChat(message: Message): Promise<void> {
       result = await createNewSession(guildId, channelId, sanitized, model, project)
     }
 
+    // SDK が 0 文字を返した場合（ツール実行のみで終わった場合）、要約を要求する
+    if (!result.content && result.sessionId) {
+      log.info(`SDK returned 0 chars, requesting summary from session ${result.sessionId.slice(0, 12)}...`)
+      try {
+        const summaryResult = await runClaudeSdk({
+          prompt: '今の操作の結果を日本語で簡潔に教えてください。',
+          model,
+          resume: result.sessionId,
+          maxTurns: 1,
+          cwd: project.localPath,
+          permissionMode: 'bypassPermissions',
+          timeoutMs: 30_000,
+        })
+        result = summaryResult
+      } catch (err) {
+        log.warn(`Summary request failed: ${err}`)
+      }
+    }
+
     const reply = result.content.slice(0, 2000)
-    await message.reply(reply || '(応答なし)')
+    await message.reply(reply || '処理は完了しましたが、返答内容を取得できませんでした。')
 
     // 会話をメモリにも保存（検索/コンパクション用）
     const now = new Date().toISOString()
