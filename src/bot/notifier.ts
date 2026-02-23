@@ -2,7 +2,7 @@ import { type Client, type TextChannel, type Message, type ThreadChannel, Channe
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
 import { COLORS, createEmbed, createQueueButtons, createPrButtons } from './theme.js'
-import type { ProgressData, ProgressStage } from '../agents/coder/types.js'
+import type { ProgressData, ProgressStage } from '../agents/taicho/types.js'
 import type { CostReport } from '../utils/cost-tracker.js'
 import type { UsageReport, UsageSnapshot, UsageAlerts } from '../utils/usage-monitor.js'
 
@@ -272,6 +272,152 @@ export async function notifyUsageAlert(
   log.warn(`Usage alert sent: ${fields.map((f) => f.name).join(', ')}`)
 }
 
+export async function notifyDailyUsageStatus(
+  report: UsageReport,
+  alertChannelId?: string,
+  queueStats?: { pending: number; processing: number; completed: number; failed: number; total: number },
+): Promise<void> {
+  const channel = await getChannel(alertChannelId)
+  if (!channel) return
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = []
+  const alertParts: string[] = []
+
+  // Claude の状況
+  if (report.claude?.claude) {
+    const c = report.claude.claude
+    const statusParts: string[] = []
+
+    // セッション情報
+    if (c.session) {
+      const sessionStatus = c.session.rateLimited
+        ? '🔴 制限中'
+        : `${c.session.usagePercent}% 使用中`
+      statusParts.push(`セッション: ${sessionStatus}${c.session.remaining ? ` (${c.session.remaining})` : ''}`)
+    }
+
+    // 週間モデル別使用量
+    if (c.weekly?.models && c.weekly.models.length > 0) {
+      for (const m of c.weekly.models) {
+        const pct = m.usagePercent !== undefined ? `${m.usagePercent}%` : '?%'
+        let detail = `${m.model}: ${pct} 使用`
+
+        // 日数とペース目安を表示
+        if (c.weekly.dayOfWeek !== undefined && m.usagePercent !== undefined) {
+          const dayOfWeek = c.weekly.dayOfWeek + 1
+          const expectedPercent = Math.round((dayOfWeek / 7) * 100)
+          detail += `（${dayOfWeek}日目、ペース目安 ${expectedPercent}%）`
+
+          // ペース超過判定
+          if (m.usagePercent > expectedPercent) {
+            alertParts.push(`⚠️ ${m.model} ペース超過`)
+          }
+        }
+
+        if (m.usageText) {
+          detail += ` [${m.usageText}]`
+        }
+        statusParts.push(detail)
+      }
+
+      // リセット日時
+      if (c.weekly.resetAt) {
+        statusParts.push(`リセット: ${c.weekly.resetAt}`)
+      }
+      if (c.weekly.dayOfWeek !== undefined) {
+        statusParts.push(`週の ${c.weekly.dayOfWeek + 1} 日目`)
+      }
+    }
+
+    fields.push({
+      name: 'Claude Max',
+      value: statusParts.length > 0 ? statusParts.join('\n') : 'データなし',
+      inline: false,
+    })
+  } else if (report.claude?.error) {
+    fields.push({
+      name: 'Claude Max',
+      value: `⚠️ ${report.claude.error}`,
+      inline: false,
+    })
+  } else {
+    fields.push({
+      name: 'Claude Max',
+      value: 'データ取得失敗',
+      inline: false,
+    })
+  }
+
+  // Codex の状況
+  if (report.codex?.codex) {
+    const cx = report.codex.codex
+    const codexParts: string[] = []
+
+    let codexDetail = `使用率: ${cx.usagePercent ?? '?'}%`
+    if (cx.usagePercent !== undefined) {
+      const remaining = 100 - cx.usagePercent
+      codexDetail += ` (残り ${remaining}%)`
+    }
+    codexParts.push(codexDetail)
+
+    if (cx.usageText) {
+      codexParts.push(`タスク: ${cx.usageText}`)
+    }
+    if (cx.resetAt) {
+      codexParts.push(`リセット: ${cx.resetAt}`)
+    }
+
+    // ペース超過判定
+    if (cx.usagePercent !== undefined && cx.usagePercent >= 50) {
+      alertParts.push('⚠️ Codex ペース超過')
+    }
+
+    fields.push({
+      name: 'OpenAI Codex',
+      value: codexParts.join('\n'),
+      inline: false,
+    })
+  } else if (report.codex?.error) {
+    fields.push({
+      name: 'OpenAI Codex',
+      value: `⚠️ ${report.codex.error}`,
+      inline: false,
+    })
+  } else {
+    fields.push({
+      name: 'OpenAI Codex',
+      value: 'データ取得失敗',
+      inline: false,
+    })
+  }
+
+  // キュー状況
+  if (queueStats) {
+    const queueLines = [
+      `待機中: ${queueStats.pending}　処理中: ${queueStats.processing}`,
+      `完了: ${queueStats.completed}　失敗: ${queueStats.failed}　合計: ${queueStats.total}`,
+    ]
+    fields.push({
+      name: 'キュー状況',
+      value: queueLines.join('\n'),
+      inline: false,
+    })
+  }
+
+  const hasAlerts = alertParts.length > 0
+  const description = hasAlerts ? alertParts.join('\n') : undefined
+  const color = hasAlerts ? COLORS.warning : COLORS.info
+  const title = hasAlerts ? 'LLM 使用量レポート（日次）⚠️ 超過あり' : 'LLM 使用量レポート（日次）'
+  const embed = createEmbed(color, title, {
+    description,
+    fields,
+    footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,
+  })
+
+  await channel.send({ embeds: [embed] })
+  log.info('Daily usage status sent to Discord')
+}
+
 // --- Thread 管理 + リアルタイム進捗 ---
 
 export interface IssueThreadContext {
@@ -338,7 +484,7 @@ export async function createIssueThread(
     const thread = await channel.threads.create({
       name: `Issue #${issueNumber}: ${issueTitle.slice(0, 80)}`,
       type: ChannelType.PublicThread,
-      reason: `AI Coder Agent processing Issue #${issueNumber}`,
+      reason: `タイチョーが Issue #${issueNumber} を処理中`,
     })
 
     const embed = createEmbed(COLORS.info, `🤖 Issue #${issueNumber} の処理を開始します`, {

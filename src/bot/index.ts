@@ -11,6 +11,7 @@ import {
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
 import { initNotifier } from './notifier.js'
+import { expireStaleSessions, cleanupArchived } from '../session/index.js'
 import { handleMessage } from './events/messageCreate.js'
 import { handleGuildChat } from './events/guildChat.js'
 import { handleButtonInteraction } from './events/buttonHandler.js'
@@ -72,6 +73,14 @@ export async function startBot(): Promise<Client> {
 
     initNotifier(client)
     checkModelListFreshness()
+
+    // セッションクリーンアップ: 起動時 + 1時間ごと
+    expireStaleSessions()
+    cleanupArchived()
+    setInterval(() => {
+      expireStaleSessions()
+      cleanupArchived()
+    }, 60 * 60 * 1000)
   })
 
   client.on(Events.InteractionCreate, async (interaction) => {
