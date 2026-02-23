@@ -16,7 +16,6 @@ export interface ProgressData {
   attempt?: number
   maxAttempts?: number
   prUrl?: string
-  costUsd?: number
   durationMs?: number
   error?: string
 }
@@ -35,7 +34,6 @@ export interface TaichoResult {
   success: boolean
   prUrl?: string
   branchName?: string
-  costUsd?: number
   durationMs?: number
   error?: string
   retryCount: number
@@ -55,7 +53,7 @@ export interface CodingContext {
 
 /** Strategy の実行結果 */
 export interface CodingResult {
-  costUsd?: number
+  success?: boolean
 }
 
 /**

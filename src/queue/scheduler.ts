@@ -4,9 +4,8 @@ import { resolve } from 'node:path'
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
 import { dequeue, getStats, updateStatus, markForRetry } from './processor.js'
-import { acquireLock, releaseLock, isDailyBudgetExceeded } from './rate-limiter.js'
-import { getDailyCost } from '../utils/cost-tracker.js'
-import { notifyCostAlert, notifyUsageAlert, notifyDailyUsageStatus } from '../bot/notifier.js'
+import { acquireLock, releaseLock } from './rate-limiter.js'
+import { notifyUsageAlert, notifyDailyUsageStatus } from '../bot/notifier.js'
 import { scrapeUsage, evaluateAlerts } from '../utils/usage-monitor.js'
 import type { UsageReport, UsageAlerts } from '../utils/usage-monitor.js'
 
@@ -41,31 +40,12 @@ async function processQueue(): Promise<void> {
       return
     }
 
-    // 予算ガード: バッチ開始前
-    if (isDailyBudgetExceeded()) {
-      log.warn('Daily budget exceeded. Skipping queue processing.')
-      for (const project of config.projects) {
-        await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.alertChannelId ?? project.channelId)
-      }
-      return
-    }
-
     const maxBatch = config.queue.maxBatchSize
     const cooldownMs = config.queue.cooldownMs
     let processed = 0
 
     let item = dequeue()
     while (item && processed < maxBatch) {
-      // 予算ガード: 各ジョブ前
-      if (isDailyBudgetExceeded()) {
-        log.warn('Daily budget exceeded mid-batch. Stopping.')
-        updateStatus(item.id, 'pending')
-        for (const project of config.projects) {
-          await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.alertChannelId ?? project.channelId)
-        }
-        break
-      }
-
       log.info(`Processing Issue #${item.issueNumber} (${item.id}) [${processed + 1}/${maxBatch}]`)
 
       if (processHandler) {
@@ -280,7 +260,6 @@ export async function runUsageMonitorNow(): Promise<UsageReport> {
 export type ImmediateResult =
   | { status: 'started' }
   | { status: 'locked'; reason: string }
-  | { status: 'budget_exceeded' }
   | { status: 'no_handler' }
 
 export async function processImmediate(
@@ -292,11 +271,6 @@ export async function processImmediate(
   if (!processHandler) {
     log.warn('No process handler registered for immediate processing')
     return { status: 'no_handler' }
-  }
-
-  if (isDailyBudgetExceeded()) {
-    log.warn('Daily budget exceeded. Cannot process immediately.')
-    return { status: 'budget_exceeded' }
   }
 
   if (!acquireLock()) {

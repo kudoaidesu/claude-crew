@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse, Server } from 'node:http'
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
-import { listChannels, getConversation, getCosts, getAudit } from './api.js'
+import { listChannels, getConversation, getAudit } from './api.js'
 import { renderDashboard } from './html.js'
 
 const log = createLogger('dashboard')
@@ -49,12 +49,6 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
       const [, guildId, channelId] = convMatch
       const limit = Number(url.searchParams.get('limit') ?? '50')
       sendJson(res, getConversation(guildId, channelId, Math.min(limit, 500)))
-      return
-    }
-
-    // GET /api/costs — コスト情報
-    if (path === '/api/costs' && req.method === 'GET') {
-      sendJson(res, getCosts())
       return
     }
 

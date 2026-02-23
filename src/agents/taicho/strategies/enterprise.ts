@@ -38,22 +38,17 @@ export class EnterpriseStrategy implements CodingStrategy {
   readonly name = 'enterprise'
 
   async execute(ctx: CodingContext): Promise<CodingResult> {
-    let totalCost = 0
-    const budget = this.allocateBudget(config.taicho.maxBudgetUsd)
-
     // Phase 1: PMO — Issue の意図を解釈・構造化
     log.info(`[PMO] Issue #${ctx.issue.number} の意図を解釈中`)
     const pmoResult = await runClaudeCli({
       prompt: this.buildPmoPrompt(ctx),
       systemPrompt: PMO_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budget.pmo,
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.05,
       skipPermissions: true,
     })
-    totalCost += pmoResult.costUsd ?? 0
     const requirements = pmoResult.content
     log.info(`[PMO] 要件定義を作成完了`)
 
@@ -63,13 +58,11 @@ export class EnterpriseStrategy implements CodingStrategy {
       prompt: this.buildArchitectPrompt(ctx, requirements),
       systemPrompt: ARCHITECT_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budget.architect,
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.1,
       skipPermissions: true,
     })
-    totalCost += architectResult.costUsd ?? 0
     const designDoc = architectResult.content
     log.info(`[Architect] 設計書を作成完了`)
 
@@ -79,80 +72,59 @@ export class EnterpriseStrategy implements CodingStrategy {
       prompt: this.buildPmPlanPrompt(ctx, requirements, designDoc),
       systemPrompt: PM_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budget.pmPlan,
       cwd: ctx.project.localPath,
       allowedTools: ['Read', 'Glob', 'Grep'],
       timeoutMs: config.taicho.timeoutMs * 0.1,
       skipPermissions: true,
     })
-    totalCost += pmPlanResult.costUsd ?? 0
 
     const tasks = this.parsePmPlan(pmPlanResult.content)
     log.info(`[PM] ${tasks.length} タスクに分解完了`)
 
     // Phase 4: Coder 1-N — 各タスクを順次実装
-    const coderBudgetEach = budget.coders / Math.max(tasks.length, 1)
-
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i]
       log.info(`[Coder${i + 1}] ${task.title} — 実装中`)
 
-      const coderResult = await runClaudeCli({
+      await runClaudeCli({
         prompt: this.buildCoderPrompt(ctx, task, i + 1, tasks.length, designDoc),
         systemPrompt: CODER_SYSTEM_PROMPT,
         model: config.llm.model,
-        maxBudgetUsd: coderBudgetEach,
         cwd: ctx.project.localPath,
         allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
         timeoutMs: config.taicho.timeoutMs * 0.4 / Math.max(tasks.length, 1),
         skipPermissions: true,
       })
-      totalCost += coderResult.costUsd ?? 0
       log.info(`[Coder${i + 1}] ${task.title} — 完了`)
     }
 
     // Phase 5: Tester — コードレビュー + テスト実行
     log.info(`[Tester] コードレビュー・テスト実行中`)
-    const testerResult = await runClaudeCli({
+    await runClaudeCli({
       prompt: this.buildTesterPrompt(ctx, requirements),
       systemPrompt: TESTER_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budget.tester,
       cwd: ctx.project.localPath,
       allowedTools: ['Bash', 'Read', 'Glob', 'Grep', 'Edit', 'Write'],
       timeoutMs: config.taicho.timeoutMs * 0.2,
       skipPermissions: true,
     })
-    totalCost += testerResult.costUsd ?? 0
     log.info(`[Tester] テスト完了`)
 
     // Phase 6: PM — 最終統合レビュー
     log.info(`[PM] 最終統合レビュー中`)
-    const pmReviewResult = await runClaudeCli({
+    await runClaudeCli({
       prompt: this.buildPmReviewPrompt(ctx, requirements),
       systemPrompt: PM_REVIEW_SYSTEM_PROMPT,
       model: config.llm.model,
-      maxBudgetUsd: budget.pmReview,
       cwd: ctx.project.localPath,
       allowedTools: ['Bash', 'Read', 'Glob', 'Grep', 'Edit', 'Write'],
       timeoutMs: config.taicho.timeoutMs * 0.1,
       skipPermissions: true,
     })
-    totalCost += pmReviewResult.costUsd ?? 0
     log.info(`[PM] 統合レビュー完了`)
 
-    return { costUsd: totalCost }
-  }
-
-  private allocateBudget(totalBudget: number) {
-    return {
-      pmo: totalBudget * 0.05,        // PMO（意図解釈）: 5%
-      architect: totalBudget * 0.1,    // Architect（設計）: 10%
-      pmPlan: totalBudget * 0.1,       // PM（計画）: 10%
-      coders: totalBudget * 0.5,       // Coder群（実装）: 50%
-      tester: totalBudget * 0.15,      // Tester（品質保証）: 15%
-      pmReview: totalBudget * 0.1,     // PM（統合レビュー）: 10%
-    }
+    return {}
   }
 
   // --- Prompt Builders ---

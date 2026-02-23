@@ -7,7 +7,6 @@ export interface ClaudeSdkOptions {
   systemPrompt?: string
   model?: string
   maxTurns?: number
-  maxBudgetUsd?: number
   cwd?: string
   allowedTools?: string[]
   resume?: string
@@ -19,7 +18,6 @@ export interface ClaudeSdkOptions {
 
 export interface ClaudeSdkResult {
   content: string
-  costUsd?: number
   sessionId?: string
 }
 
@@ -107,9 +105,6 @@ export async function runClaudeSdk(options: ClaudeSdkOptions): Promise<ClaudeSdk
   if (options.allowedTools && options.allowedTools.length > 0) {
     queryOptions.allowedTools = options.allowedTools
   }
-  if (options.maxBudgetUsd !== undefined) {
-    queryOptions.maxBudgetUsd = options.maxBudgetUsd
-  }
   if (options.resume) {
     queryOptions.resume = options.resume
   }
@@ -125,7 +120,6 @@ export async function runClaudeSdk(options: ClaudeSdkOptions): Promise<ClaudeSdk
 
   let sessionId: string | undefined
   let content = ''
-  let costUsd: number | undefined
 
   const abortController = new AbortController()
   queryOptions.abortController = abortController
@@ -163,13 +157,10 @@ export async function runClaudeSdk(options: ClaudeSdkOptions): Promise<ClaudeSdk
         }
       }
 
-      // result — 最終結果（コスト含む）
+      // result — 最終結果
       if (msg.type === 'result') {
         if (msg.session_id) {
           sessionId = msg.session_id
-        }
-        if (msg.total_cost_usd !== undefined) {
-          costUsd = msg.total_cost_usd
         }
         // result message に最終テキストがある場合
         if (msg.result && !content) {
@@ -184,8 +175,8 @@ export async function runClaudeSdk(options: ClaudeSdkOptions): Promise<ClaudeSdk
   }
 
   log.info(
-    `SDK completed: ${content.length} chars, cost=$${costUsd?.toFixed(4) ?? '?'}, session=${sessionId?.slice(0, 12) ?? 'none'}`,
+    `SDK completed: ${content.length} chars, session=${sessionId?.slice(0, 12) ?? 'none'}`,
   )
 
-  return { content, costUsd, sessionId }
+  return { content, sessionId }
 }

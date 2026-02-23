@@ -24,7 +24,6 @@ import * as statusCmd from './commands/status.js'
 import * as queueCmd from './commands/queue.js'
 import * as runCmd from './commands/run.js'
 import * as cronCmd from './commands/cron.js'
-import * as costCmd from './commands/cost.js'
 import * as usageCmd from './commands/usage.js'
 import * as modelCmd from './commands/model.js'
 
@@ -36,7 +35,7 @@ interface Command {
 }
 
 const commands = new Collection<string, Command>()
-const commandList: Command[] = [issueCmd, statusCmd, queueCmd, runCmd, cronCmd, costCmd, usageCmd, modelCmd]
+const commandList: Command[] = [issueCmd, statusCmd, queueCmd, runCmd, cronCmd, usageCmd, modelCmd]
 
 for (const cmd of commandList) {
   commands.set(cmd.data.name, cmd)

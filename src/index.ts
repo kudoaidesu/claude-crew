@@ -56,14 +56,13 @@ async function main(): Promise<void> {
     // Thread 未使用時はレガシー通知にフォールバック
     if (!threadCtx) {
       if (result.success) {
-        const costStr = result.costUsd ? ` (コスト: $${result.costUsd.toFixed(2)})` : ''
         const durationStr = result.durationMs
           ? ` (所要時間: ${Math.round(result.durationMs / 1000)}秒)`
           : ''
         await notifyProcessingComplete(
           issueNumber,
           true,
-          `Draft PR 作成完了: ${result.prUrl}${costStr}${durationStr}`,
+          `Draft PR 作成完了: ${result.prUrl}${durationStr}`,
           project.channelId,
         )
       } else {

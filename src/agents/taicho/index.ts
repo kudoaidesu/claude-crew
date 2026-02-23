@@ -2,7 +2,6 @@ import { config } from '../../config.js'
 import { addComment } from '../../github/issues.js'
 import { createLogger } from '../../utils/logger.js'
 import { appendAudit } from '../../utils/audit.js'
-import { recordCost } from '../../utils/cost-tracker.js'
 import type { TaichoInput, TaichoResult } from './types.js'
 import {
   generateBranchName,
@@ -54,7 +53,6 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
   }
 
   let lastError = ''
-  let totalCostUsd = 0
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -67,7 +65,7 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
         maxAttempts: maxRetries,
       })
 
-      const codingResult = await strategy.execute({
+      await strategy.execute({
         issue,
         project,
         baseBranch,
@@ -75,10 +73,6 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
         attempt: attempt + 1,
         maxAttempts: maxRetries,
       })
-
-      if (codingResult.costUsd) {
-        totalCostUsd += codingResult.costUsd
-      }
 
       // コミットが生成されたか確認
       void input.onProgress?.({ stage: 'verifying', message: 'コミットを確認中...' })
@@ -106,18 +100,8 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
       appendAudit({
         action: 'taicho_complete',
         actor: 'taicho',
-        detail: `Issue #${issue.number}: PR ${prUrl} (strategy: ${strategy.name}, cost: $${totalCostUsd.toFixed(2)}, duration: ${Math.round(durationMs / 1000)}s, attempts: ${attempt + 1})`,
+        detail: `Issue #${issue.number}: PR ${prUrl} (strategy: ${strategy.name}, duration: ${Math.round(durationMs / 1000)}s, attempts: ${attempt + 1})`,
         result: 'allow',
-      })
-
-      recordCost({
-        issueNumber: issue.number,
-        repository: project.repo,
-        costUsd: totalCostUsd,
-        durationMs,
-        success: true,
-        prUrl,
-        retryCount: attempt,
       })
 
       log.info(`Taicho completed for Issue #${issue.number}: ${prUrl}`)
@@ -126,7 +110,6 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
         stage: 'done',
         message: `完了: ${prUrl}`,
         prUrl,
-        costUsd: totalCostUsd,
         durationMs,
       })
 
@@ -134,7 +117,6 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
         success: true,
         prUrl,
         branchName,
-        costUsd: totalCostUsd,
         durationMs,
         retryCount: attempt,
       }
@@ -171,24 +153,14 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
     stage: 'failed',
     message: `失敗: ${lastError}`,
     error,
-    costUsd: totalCostUsd,
     durationMs,
   })
 
   appendAudit({
     action: 'taicho_failed',
     actor: 'taicho',
-    detail: `Issue #${issue.number}: ${error} (strategy: ${strategy.name}, cost: $${totalCostUsd.toFixed(2)}, duration: ${Math.round(durationMs / 1000)}s)`,
+    detail: `Issue #${issue.number}: ${error} (strategy: ${strategy.name}, duration: ${Math.round(durationMs / 1000)}s)`,
     result: 'error',
-  })
-
-  recordCost({
-    issueNumber: issue.number,
-    repository: project.repo,
-    costUsd: totalCostUsd,
-    durationMs,
-    success: false,
-    retryCount: maxRetries,
   })
 
   // Issue に失敗コメントを追加
@@ -207,7 +179,6 @@ export async function runTaicho(input: TaichoInput): Promise<TaichoResult> {
   return {
     success: false,
     error,
-    costUsd: totalCostUsd,
     durationMs,
     retryCount: maxRetries,
   }
