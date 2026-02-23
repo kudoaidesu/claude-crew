@@ -1,12 +1,14 @@
 import cron, { type ScheduledTask } from 'node-cron'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { config } from '../config.js'
 import { createLogger } from '../utils/logger.js'
 import { dequeue, getStats, updateStatus, markForRetry } from './processor.js'
 import { acquireLock, releaseLock, isDailyBudgetExceeded } from './rate-limiter.js'
-import { getDailyCost, getCostReport } from '../utils/cost-tracker.js'
-import { notifyCostReport, notifyCostAlert, notifyUsageReport, notifyDailyUsageStatus } from '../bot/notifier.js'
+import { getDailyCost } from '../utils/cost-tracker.js'
+import { notifyCostAlert, notifyUsageAlert, notifyDailyUsageStatus } from '../bot/notifier.js'
 import { scrapeUsage, evaluateAlerts } from '../utils/usage-monitor.js'
-import type { UsageReport } from '../utils/usage-monitor.js'
+import type { UsageReport, UsageAlerts } from '../utils/usage-monitor.js'
 
 const log = createLogger('scheduler')
 
@@ -43,7 +45,7 @@ async function processQueue(): Promise<void> {
     if (isDailyBudgetExceeded()) {
       log.warn('Daily budget exceeded. Skipping queue processing.')
       for (const project of config.projects) {
-        await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.channelId)
+        await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.alertChannelId ?? project.channelId)
       }
       return
     }
@@ -59,7 +61,7 @@ async function processQueue(): Promise<void> {
         log.warn('Daily budget exceeded mid-batch. Stopping.')
         updateStatus(item.id, 'pending')
         for (const project of config.projects) {
-          await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.channelId)
+          await notifyCostAlert(getDailyCost(), config.queue.dailyBudgetUsd, project.alertChannelId ?? project.channelId)
         }
         break
       }
@@ -105,18 +107,34 @@ async function processQueue(): Promise<void> {
   }
 }
 
-async function reportStatus(): Promise<void> {
-  const stats = getStats()
-  log.info(
-    `[Report] pending=${stats.pending} processing=${stats.processing} completed=${stats.completed} failed=${stats.failed} total=${stats.total}`,
-  )
+// アラート状態をファイルに永続化（再起動後もリセットされず重複送信を防ぐ）
+type AlertStateFlags = {
+  sessionRateLimited: boolean
+  wakeTimeConflict: boolean
+  weeklyPaceExceeded: boolean
+  sonnetPaceExceeded: boolean
+  codexPaceExceeded: boolean
+}
 
-  // コスト + キューレポートを Discord に送信
-  const costReport = getCostReport()
-  for (const project of config.projects) {
-    await notifyCostReport(costReport, stats, project.channelId)
+const ALERT_STATE_PATH = resolve(config.queue.dataDir, 'alert-state.json')
+
+function loadAlertState(): AlertStateFlags {
+  try {
+    return JSON.parse(readFileSync(ALERT_STATE_PATH, 'utf-8')) as AlertStateFlags
+  } catch {
+    return { sessionRateLimited: false, wakeTimeConflict: false, weeklyPaceExceeded: false, sonnetPaceExceeded: false, codexPaceExceeded: false }
   }
 }
+
+function saveAlertState(state: AlertStateFlags): void {
+  try {
+    writeFileSync(ALERT_STATE_PATH, JSON.stringify(state))
+  } catch (err) {
+    log.warn(`Failed to save alert state: ${(err as Error).message}`)
+  }
+}
+
+let prevAlertStates: AlertStateFlags = loadAlertState()
 
 async function scrapeAndAlert(): Promise<void> {
   log.info('Usage scrape triggered')
@@ -124,15 +142,58 @@ async function scrapeAndAlert(): Promise<void> {
     const report = await scrapeUsage()
     const alerts = evaluateAlerts(report)
 
+    const claudeSession = report.claude?.claude?.session?.usagePercent ?? '?'
+    const codexPct = report.codex?.codex?.usagePercent ?? '?'
+
+    // データが取得できたコンポーネントのみ状態を更新
+    // スクレイプ失敗時は前回の状態を維持し、誤リセットによる重複送信を防ぐ
+    const nextStates = { ...prevAlertStates }
+    if (report.claude?.claude) {
+      nextStates.sessionRateLimited = alerts.sessionRateLimited
+      nextStates.wakeTimeConflict = alerts.wakeTimeConflict
+      nextStates.weeklyPaceExceeded = alerts.weeklyPaceExceeded
+      nextStates.sonnetPaceExceeded = alerts.sonnetPaceExceeded
+    }
+    if (report.codex?.codex?.usagePercent !== undefined) {
+      nextStates.codexPaceExceeded = alerts.codexPaceExceeded
+    }
+
+    // false → true に新たに遷移した種別のみ抽出
+    const newlyTriggered = {
+      sessionRateLimited: !prevAlertStates.sessionRateLimited && nextStates.sessionRateLimited,
+      wakeTimeConflict: !prevAlertStates.wakeTimeConflict && nextStates.wakeTimeConflict,
+      weeklyPaceExceeded: !prevAlertStates.weeklyPaceExceeded && nextStates.weeklyPaceExceeded,
+      sonnetPaceExceeded: !prevAlertStates.sonnetPaceExceeded && nextStates.sonnetPaceExceeded,
+      codexPaceExceeded: !prevAlertStates.codexPaceExceeded && nextStates.codexPaceExceeded,
+    }
+    const hasNewAlerts = Object.values(newlyTriggered).some(Boolean)
+
+    prevAlertStates = nextStates
+    saveAlertState(nextStates)
+
     if (alerts.hasAlerts) {
-      // 閾値超過時のリアルタイムアラートは削除（18時の日次サマリーのみ）
-      const claudeSession = report.claude?.claude?.session?.usagePercent ?? '?'
-      const codexPct = report.codex?.codex?.usagePercent ?? '?'
-      log.warn(`Usage alert detected: Claude session=${claudeSession}%, Codex=${codexPct}%`)
+      log.warn(`Usage alert active: Claude session=${claudeSession}%, Codex=${codexPct}%`)
     } else {
-      const claudeSession = report.claude?.claude?.session?.usagePercent ?? '?'
-      const codexPct = report.codex?.codex?.usagePercent ?? '?'
       log.info(`Usage within limits: Claude session=${claudeSession}%, Codex=${codexPct}%`)
+    }
+
+    if (hasNewAlerts) {
+      log.info(`New alert(s) triggered: ${Object.entries(newlyTriggered).filter(([, v]) => v).map(([k]) => k).join(', ')}`)
+      const alertsToSend: UsageAlerts = {
+        ...alerts,
+        sessionRateLimited: newlyTriggered.sessionRateLimited,
+        wakeTimeConflict: newlyTriggered.wakeTimeConflict,
+        weeklyPaceExceeded: newlyTriggered.weeklyPaceExceeded,
+        sonnetPaceExceeded: newlyTriggered.sonnetPaceExceeded,
+        codexPaceExceeded: newlyTriggered.codexPaceExceeded,
+        hasAlerts: hasNewAlerts,
+      }
+      for (const project of config.projects) {
+        const alertChannelId = project.alertChannelId
+        if (alertChannelId) {
+          await notifyUsageAlert(alertsToSend, report, alertChannelId)
+        }
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -140,27 +201,15 @@ async function scrapeAndAlert(): Promise<void> {
   }
 }
 
-async function reportUsage(): Promise<void> {
-  log.info('Daily usage report triggered')
-  try {
-    const report = await scrapeUsage()
-    for (const project of config.projects) {
-      await notifyUsageReport(report, project.channelId)
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    log.error(`Usage report failed: ${message}`)
-  }
-}
-
 async function reportDailyUsageStatus(): Promise<void> {
   log.info('Daily usage status report triggered')
   try {
     const report = await scrapeUsage()
+    const queueStats = getStats()
     for (const project of config.projects) {
       const alertChannelId = project.alertChannelId
       if (alertChannelId) {
-        await notifyDailyUsageStatus(report, alertChannelId)
+        await notifyDailyUsageStatus(report, alertChannelId, queueStats)
       }
     }
   } catch (err) {
@@ -180,16 +229,6 @@ export function startScheduler(): void {
   tasks.set('queue-process', processTask)
   log.info(`Queue processing scheduled: ${config.cron.schedule}`)
 
-  const reportTask = cron.schedule(
-    config.cron.reportSchedule,
-    () => {
-      void reportStatus()
-    },
-    { timezone: 'Asia/Tokyo' },
-  )
-  tasks.set('status-report', reportTask)
-  log.info(`Status report scheduled: ${config.cron.reportSchedule}`)
-
   const usageScrapeTask = cron.schedule(
     config.usageMonitor.scrapeSchedule,
     () => {
@@ -199,16 +238,6 @@ export function startScheduler(): void {
   )
   tasks.set('usage-scrape', usageScrapeTask)
   log.info(`Usage scrape scheduled: ${config.usageMonitor.scrapeSchedule}`)
-
-  const usageReportTask = cron.schedule(
-    config.usageMonitor.reportSchedule,
-    () => {
-      void reportUsage()
-    },
-    { timezone: 'Asia/Tokyo' },
-  )
-  tasks.set('usage-report', usageReportTask)
-  log.info(`Usage report scheduled: ${config.usageMonitor.reportSchedule}`)
 
   const dailyUsageStatusTask = cron.schedule(
     config.cron.dailyUsageStatusSchedule,
@@ -231,9 +260,7 @@ export function stopScheduler(): void {
 export function getScheduledTasks(): { name: string; schedule: string }[] {
   return [
     { name: 'queue-process', schedule: config.cron.schedule },
-    { name: 'status-report', schedule: config.cron.reportSchedule },
     { name: 'usage-scrape', schedule: config.usageMonitor.scrapeSchedule },
-    { name: 'usage-report', schedule: config.usageMonitor.reportSchedule },
     { name: 'daily-usage-status', schedule: config.cron.dailyUsageStatusSchedule },
   ]
 }

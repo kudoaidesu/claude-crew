@@ -66,7 +66,7 @@ if [ "$BLOCKED" = true ]; then
     DISCORD_BOT_TOKEN=$(grep '^DISCORD_BOT_TOKEN=' "$PROJECT_DIR/.env" | cut -d'=' -f2)
   fi
 
-  CHANNEL_ID=$(jq -r '.[0].alertChannelId // empty' "$PROJECT_DIR/projects.json" 2>/dev/null)
+  CHANNEL_ID=$(jq -r '.[0].operationAlertChannelId // empty' "$PROJECT_DIR/projects.json" 2>/dev/null)
 
   if [ -n "$DISCORD_BOT_TOKEN" ] && [ -n "$CHANNEL_ID" ]; then
     # 停止ボタン付きペイロード

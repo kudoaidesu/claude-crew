@@ -275,28 +275,20 @@ export async function notifyUsageAlert(
 export async function notifyDailyUsageStatus(
   report: UsageReport,
   alertChannelId?: string,
+  queueStats?: { pending: number; processing: number; completed: number; failed: number; total: number },
 ): Promise<void> {
   const channel = await getChannel(alertChannelId)
   if (!channel) return
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = []
-  const descriptionParts: string[] = []
+  const alertParts: string[] = []
 
   // Claude の状況
   if (report.claude?.claude) {
     const c = report.claude.claude
-
-    if (c.weekly?.models && c.weekly.models.length > 0) {
-      for (const m of c.weekly.models) {
-        if (m.usagePercent !== undefined && m.usagePercent >= 80) {
-          // ペース超過時のみタイトルに含める
-          descriptionParts.push(`${m.model} ペース超過`)
-        }
-      }
-    }
-
     const statusParts: string[] = []
 
+    // セッション情報
     if (c.session) {
       const sessionStatus = c.session.rateLimited
         ? '🔴 制限中'
@@ -304,18 +296,36 @@ export async function notifyDailyUsageStatus(
       statusParts.push(`セッション: ${sessionStatus}${c.session.remaining ? ` (${c.session.remaining})` : ''}`)
     }
 
+    // 週間モデル別使用量
     if (c.weekly?.models && c.weekly.models.length > 0) {
       for (const m of c.weekly.models) {
         const pct = m.usagePercent !== undefined ? `${m.usagePercent}%` : '?%'
         let detail = `${m.model}: ${pct} 使用`
 
-        // Sonnet の場合、日数とペース目安を表示
-        if (m.model === 'Sonnet' && c.weekly.dayOfWeek !== undefined) {
+        // 日数とペース目安を表示
+        if (c.weekly.dayOfWeek !== undefined && m.usagePercent !== undefined) {
           const dayOfWeek = c.weekly.dayOfWeek + 1
-          const pace = Math.round((m.usagePercent ?? 0) / dayOfWeek)
-          detail += `（${dayOfWeek}日目、ペース目安 ${pace}%）`
+          const expectedPercent = Math.round((dayOfWeek / 7) * 100)
+          detail += `（${dayOfWeek}日目、ペース目安 ${expectedPercent}%）`
+
+          // ペース超過判定
+          if (m.usagePercent > expectedPercent) {
+            alertParts.push(`⚠️ ${m.model} ペース超過`)
+          }
+        }
+
+        if (m.usageText) {
+          detail += ` [${m.usageText}]`
         }
         statusParts.push(detail)
+      }
+
+      // リセット日時
+      if (c.weekly.resetAt) {
+        statusParts.push(`リセット: ${c.weekly.resetAt}`)
+      }
+      if (c.weekly.dayOfWeek !== undefined) {
+        statusParts.push(`週の ${c.weekly.dayOfWeek + 1} 日目`)
       }
     }
 
@@ -341,21 +351,30 @@ export async function notifyDailyUsageStatus(
   // Codex の状況
   if (report.codex?.codex) {
     const cx = report.codex.codex
+    const codexParts: string[] = []
 
-    // Codex がペース超過の場合
-    if (cx.usagePercent !== undefined && cx.usagePercent >= 50) {
-      descriptionParts.push('Codex ペース超過')
-    }
-
-    let codexDetail = `Codex: ${cx.usagePercent ?? '?'}% 使用`
+    let codexDetail = `使用率: ${cx.usagePercent ?? '?'}%`
     if (cx.usagePercent !== undefined) {
       const remaining = 100 - cx.usagePercent
       codexDetail += ` (残り ${remaining}%)`
     }
+    codexParts.push(codexDetail)
+
+    if (cx.usageText) {
+      codexParts.push(`タスク: ${cx.usageText}`)
+    }
+    if (cx.resetAt) {
+      codexParts.push(`リセット: ${cx.resetAt}`)
+    }
+
+    // ペース超過判定
+    if (cx.usagePercent !== undefined && cx.usagePercent >= 50) {
+      alertParts.push('⚠️ Codex ペース超過')
+    }
 
     fields.push({
       name: 'OpenAI Codex',
-      value: codexDetail,
+      value: codexParts.join('\n'),
       inline: false,
     })
   } else if (report.codex?.error) {
@@ -372,9 +391,24 @@ export async function notifyDailyUsageStatus(
     })
   }
 
-  const description = descriptionParts.length > 0 ? descriptionParts.join('\n') : undefined
-  const color = descriptionParts.length > 0 ? COLORS.warning : COLORS.info
-  const embed = createEmbed(color, 'LLM 使用量アラート', {
+  // キュー状況
+  if (queueStats) {
+    const queueLines = [
+      `待機中: ${queueStats.pending}　処理中: ${queueStats.processing}`,
+      `完了: ${queueStats.completed}　失敗: ${queueStats.failed}　合計: ${queueStats.total}`,
+    ]
+    fields.push({
+      name: 'キュー状況',
+      value: queueLines.join('\n'),
+      inline: false,
+    })
+  }
+
+  const hasAlerts = alertParts.length > 0
+  const description = hasAlerts ? alertParts.join('\n') : undefined
+  const color = hasAlerts ? COLORS.warning : COLORS.info
+  const title = hasAlerts ? 'LLM 使用量レポート（日次）⚠️ 超過あり' : 'LLM 使用量レポート（日次）'
+  const embed = createEmbed(color, title, {
     description,
     fields,
     footer: `取得時刻: ${new Date(report.scrapedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`,

@@ -1,5 +1,6 @@
 import type { CodingStrategy } from '../types.js'
 import { ClaudeCliStrategy } from './claude-cli.js'
+import { EnterpriseStrategy } from './enterprise.js'
 import { OrchestratorWorkersStrategy } from './orchestrator-workers.js'
 import { ShogunStrategy } from './shogun.js'
 
@@ -26,3 +27,4 @@ export function getDefaultStrategy(): CodingStrategy {
 registerStrategy(new ClaudeCliStrategy())
 registerStrategy(new OrchestratorWorkersStrategy())
 registerStrategy(new ShogunStrategy())
+registerStrategy(new EnterpriseStrategy())
