@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Claude Code</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.469.0/font/lucide.min.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -28,16 +29,33 @@ body{display:flex;flex-direction:column;height:100dvh}
 /* ── ヘッダー ── */
 .header{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
 .header-logo{display:flex;align-items:center;gap:6px;color:var(--accent);font-weight:700;font-size:13px;font-family:var(--font-mono)}
-.header-logo svg{width:18px;height:18px;fill:currentColor}
+.header-logo i{font-size:18px}
 .header-spacer{flex:1}
 .header-btn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;font-family:var(--font-mono);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s}
 .header-btn:hover{color:var(--text);border-color:var(--border-light);background:var(--surface-hover)}
 .header-btn.active{color:var(--accent);border-color:var(--accent-border)}
+.header-btn i{font-size:14px}
 .model-select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;font-family:var(--font-mono);cursor:pointer}
 .model-select:focus{outline:none;border-color:var(--accent)}
 
+/* ── セッションタブバー ── */
+.tab-bar{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;font-family:var(--font-mono);color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .1s;min-width:0;max-width:180px;flex-shrink:0;position:relative}
+.tab:hover{color:var(--text);background:var(--surface-hover)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab .tab-streaming{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tab .tab-close{font-size:12px;color:var(--muted);cursor:pointer;padding:0 2px;border-radius:3px;transition:all .1s;flex-shrink:0;display:flex;align-items:center}
+.tab .tab-close:hover{color:var(--danger);background:var(--danger-bg)}
+.tab-add{display:flex;align-items:center;justify-content:center;padding:6px 10px;color:var(--muted);cursor:pointer;transition:all .1s;flex-shrink:0}
+.tab-add:hover{color:var(--accent);background:var(--surface-hover)}
+.tab-add i{font-size:14px}
+
 /* ── メッセージエリア ── */
-.messages{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:16px}
+.messages{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:16px;display:none}
+.messages.active{display:flex}
 
 /* ── ユーザーメッセージ ── */
 .msg.user{display:flex;justify-content:flex-end}
@@ -88,7 +106,7 @@ pre:hover .code-copy-btn{opacity:1}
 .tool-detail-header .tool-chevron{font-size:9px;color:var(--muted);transition:transform .15s;width:12px;text-align:center}
 .tool-detail-header .tool-chevron.open{transform:rotate(90deg)}
 .tool-detail-header .tool-icon-label{display:flex;align-items:center;gap:6px}
-.tool-detail-header .tool-emoji{font-size:14px}
+.tool-detail-header .tool-icon{font-size:13px;color:var(--muted);width:16px;text-align:center}
 .tool-detail-header .tool-name{color:var(--accent);font-weight:600;font-size:12px}
 .tool-detail-header .tool-file{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
 .tool-detail-header .tool-status{font-size:10px;color:var(--success)}
@@ -103,6 +121,7 @@ pre:hover .code-copy-btn{opacity:1}
 
 /* ── 警告バッジ ── */
 .warning-badge{display:flex;align-items:center;gap:8px;background:var(--warning-bg);color:var(--warning);border:1px solid rgba(249,226,175,.2);border-radius:8px;padding:8px 12px;font-size:12px;margin:4px 0;font-family:var(--font-mono)}
+.warning-badge i{font-size:14px}
 
 /* ── コスト表示 ── */
 .meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:12px;font-family:var(--font-mono)}
@@ -159,7 +178,7 @@ pre:hover .code-copy-btn{opacity:1}
 .session-item.active{border-color:var(--accent-border);background:var(--accent-dim)}
 .session-item .preview{font-size:13px;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .session-item .session-meta{display:flex;gap:8px;font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono)}
-.session-item .delete-session{align-self:flex-end;color:var(--danger);background:none;border:none;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font-mono);opacity:.6;transition:opacity .1s}
+.session-item .delete-session{align-self:flex-end;color:var(--danger);background:none;border:none;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font-mono);opacity:.6;transition:opacity .1s;display:flex;align-items:center;gap:3px}
 .session-item .delete-session:hover{opacity:1}
 </style>
 </head>
@@ -167,28 +186,36 @@ pre:hover .code-copy-btn{opacity:1}
 
 <div class="header">
   <div class="header-logo">
-    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <i class="icon-terminal"></i>
     <span id="title">claude-crew</span>
   </div>
   <div class="header-spacer"></div>
   <select id="model" class="model-select">
-    <option value="sonnet">sonnet</option>
-    <option value="opus">opus</option>
-    <option value="haiku">haiku</option>
+    <option value="default">default (auto)</option>
+    <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
+    <option value="claude-opus-4-6">claude-opus-4-6</option>
+    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+    <option value="sonnet">sonnet (alias)</option>
+    <option value="opus">opus (alias)</option>
+    <option value="haiku">haiku (alias)</option>
   </select>
-  <button class="header-btn" id="historyBtn" onclick="openDrawer('sessions')" title="Sessions">&#128340; History</button>
-  <button class="header-btn" onclick="openDrawer('projects')" title="Projects">&#9776;</button>
+  <button class="header-btn" id="historyBtn" onclick="openDrawer('sessions')" title="History"><i class="icon-clock"></i> History</button>
+  <button class="header-btn" onclick="openDrawer('projects')" title="Projects"><i class="icon-folder"></i></button>
 </div>
 
-<div class="messages" id="messages"></div>
+<div class="tab-bar" id="tabBar">
+  <div class="tab-add" onclick="createNewTab()" title="New Chat"><i class="icon-plus"></i></div>
+</div>
+
+<div id="sessionsContainer"></div>
 
 <div class="input-area">
   <div class="input-box">
     <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="send"></textarea>
     <div class="input-footer">
-      <span class="model-indicator" id="modelIndicator">sonnet</span>
-      <button class="abort-btn" id="abort" onclick="abortCurrentStream()" title="Stop">&#9632;</button>
-      <button class="send-btn" id="send" onclick="sendMessage()" title="Send (Enter)">&#9654;</button>
+      <span class="model-indicator" id="modelIndicator">claude-sonnet-4-6</span>
+      <button class="abort-btn" id="abort" onclick="abortCurrentTab()" title="Stop"><i class="icon-square"></i></button>
+      <button class="send-btn" id="send" onclick="sendMessage()" title="Send (Enter)"><i class="icon-send"></i></button>
     </div>
   </div>
 </div>
@@ -210,23 +237,27 @@ pre:hover .code-copy-btn{opacity:1}
 
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script>
+// --- ツールアイコンマップ (Lucide) ---
+const TOOL_ICONS = {
+  Read: 'icon-file-text', Write: 'icon-file-pen', Edit: 'icon-file-pen', Bash: 'icon-terminal',
+  Glob: 'icon-search', Grep: 'icon-search', WebFetch: 'icon-globe', WebSearch: 'icon-globe',
+  Task: 'icon-bot', TodoWrite: 'icon-list-checks', NotebookEdit: 'icon-notebook-pen',
+}
+
 // --- State ---
-let sessionId = null
-let currentStreamId = null
 let currentProject = null
-let sending = false
-const messagesEl = document.getElementById('messages')
-const inputEl = document.getElementById('input')
 const sendBtn = document.getElementById('send')
 const abortBtn = document.getElementById('abort')
 const modelIndicator = document.getElementById('modelIndicator')
+const inputEl = document.getElementById('input')
+const tabBar = document.getElementById('tabBar')
+const sessionsContainer = document.getElementById('sessionsContainer')
 
-// ツールアイコンマップ
-const TOOL_ICONS = {
-  Read: '📄', Write: '✏️', Edit: '✏️', Bash: '💻',
-  Glob: '🔍', Grep: '🔍', WebFetch: '🌐', WebSearch: '🌐',
-  Task: '🤖', TodoWrite: '📝', NotebookEdit: '📓',
-}
+// マルチセッション管理
+let activeTabId = null
+const tabs = new Map() // tabId → { sessionId, streamId, sending, messagesEl, fullTexts, label }
+
+function genTabId() { return 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2,6) }
 
 // --- marked カスタムレンダラー ---
 const renderer = new marked.Renderer()
@@ -263,6 +294,115 @@ document.getElementById('model').addEventListener('change', (e) => {
   modelIndicator.textContent = e.target.value
 })
 
+// --- タブ管理 ---
+function createNewTab(label) {
+  const tabId = genTabId()
+  const messagesEl = document.createElement('div')
+  messagesEl.className = 'messages'
+  messagesEl.id = 'msgs-' + tabId
+  sessionsContainer.appendChild(messagesEl)
+
+  tabs.set(tabId, {
+    sessionId: null,
+    streamId: null,
+    sending: false,
+    messagesEl,
+    fullTexts: new WeakMap(),
+    label: label || 'New Chat',
+  })
+
+  renderTabs()
+  switchTab(tabId)
+  return tabId
+}
+
+function switchTab(tabId) {
+  if (!tabs.has(tabId)) return
+  activeTabId = tabId
+  // メッセージ表示切替
+  tabs.forEach((t, id) => {
+    t.messagesEl.classList.toggle('active', id === tabId)
+  })
+  // タブUI更新
+  renderTabs()
+  // 送信状態を反映
+  const tab = tabs.get(tabId)
+  updateStreamingUI(tab.sending)
+  inputEl.focus()
+}
+
+function closeTab(tabId) {
+  const tab = tabs.get(tabId)
+  if (!tab) return
+  // ストリーミング中なら中断
+  if (tab.sending && tab.streamId) {
+    fetch('/api/chat/abort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ streamId: tab.streamId }),
+    }).catch(() => {})
+  }
+  tab.messagesEl.remove()
+  tabs.delete(tabId)
+  // 別タブに切り替え
+  if (activeTabId === tabId) {
+    const remaining = Array.from(tabs.keys())
+    if (remaining.length > 0) {
+      switchTab(remaining[remaining.length - 1])
+    } else {
+      createNewTab()
+    }
+  } else {
+    renderTabs()
+  }
+}
+
+function renderTabs() {
+  // タブ要素を再構築（+ボタンの前に挿入）
+  const addBtn = tabBar.querySelector('.tab-add')
+  tabBar.querySelectorAll('.tab').forEach(t => t.remove())
+
+  tabs.forEach((tab, tabId) => {
+    const el = document.createElement('div')
+    el.className = 'tab' + (tabId === activeTabId ? ' active' : '')
+    el.onclick = (e) => { if (!e.target.closest('.tab-close')) switchTab(tabId) }
+
+    let inner = ''
+    if (tab.sending) inner += '<span class="tab-streaming"></span>'
+    inner += `<span class="tab-label">${esc(tab.label)}</span>`
+    if (tabs.size > 1) inner += `<span class="tab-close" onclick="closeTab('${tabId}')"><i class="icon-x" style="font-size:11px"></i></span>`
+    el.innerHTML = inner
+    tabBar.insertBefore(el, addBtn)
+  })
+}
+
+function updateTabLabel(tabId, label) {
+  const tab = tabs.get(tabId)
+  if (tab) {
+    tab.label = label.slice(0, 30) || 'New Chat'
+    renderTabs()
+  }
+}
+
+// --- ストリーミングUI ---
+function updateStreamingUI(streaming) {
+  sendBtn.disabled = streaming
+  sendBtn.style.display = streaming ? 'none' : 'flex'
+  abortBtn.style.display = streaming ? 'flex' : 'none'
+}
+
+function abortCurrentTab() {
+  const tab = tabs.get(activeTabId)
+  if (!tab || !tab.streamId) return
+  fetch('/api/chat/abort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ streamId: tab.streamId }),
+  }).catch(e => console.error('Abort failed:', e))
+}
+
 // --- 初期化 ---
 async function init() {
   try {
@@ -273,6 +413,8 @@ async function init() {
   } catch (e) {
     console.error('Failed to load projects:', e)
   }
+  // 最初のタブ
+  createNewTab()
 }
 
 function renderProjectList(projects) {
@@ -289,7 +431,6 @@ function renderProjectList(projects) {
 
 function selectProject(p) {
   currentProject = p.localPath
-  sessionId = null
   document.getElementById('title').textContent = p.slug
 }
 
@@ -327,7 +468,10 @@ function renderSessionList(list) {
   container.innerHTML = ''
   list.forEach(s => {
     const el = document.createElement('div')
-    el.className = 'session-item' + (sessionId === s.sessionId ? ' active' : '')
+    // activeなタブのsessionIdと一致するか判定
+    let isActive = false
+    tabs.forEach(t => { if (t.sessionId === s.sessionId) isActive = true })
+    el.className = 'session-item' + (isActive ? ' active' : '')
     el.setAttribute('data-testid', 'session-item')
     const timeStr = new Date(s.lastUsed).toLocaleString('ja-JP', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
     el.innerHTML = `
@@ -336,7 +480,7 @@ function renderSessionList(list) {
         <span>${esc(s.model || '')}</span>
         <span>${timeStr}</span>
       </div>
-      <button class="delete-session" onclick="event.stopPropagation();deleteSession('${esc(s.id || s.sessionId.slice(0,12))}')">delete</button>
+      <button class="delete-session" onclick="event.stopPropagation();deleteSession('${esc(s.id || s.sessionId.slice(0,12))}')"><i class="icon-trash-2" style="font-size:11px"></i> delete</button>
     `
     el.onclick = () => { resumeSession(s); closeDrawer() }
     container.appendChild(el)
@@ -344,9 +488,10 @@ function renderSessionList(list) {
 }
 
 function resumeSession(s) {
-  sessionId = s.sessionId
-  messagesEl.innerHTML = ''
-  addMessage('user', `(Resumed session: ${s.messagePreview || s.sessionId.slice(0,12)})`)
+  const tabId = createNewTab(s.messagePreview || s.sessionId.slice(0, 12))
+  const tab = tabs.get(tabId)
+  tab.sessionId = s.sessionId
+  addMessage(tabId, 'user', `(Resumed: ${s.messagePreview || s.sessionId.slice(0,12)})`)
 }
 
 async function deleteSession(id) {
@@ -358,38 +503,29 @@ async function deleteSession(id) {
   }
 }
 
-// --- 中断 ---
-async function abortCurrentStream() {
-  if (!currentStreamId) return
-  try {
-    await fetch('/api/chat/abort', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ streamId: currentStreamId }),
-    })
-  } catch (e) {
-    console.error('Abort failed:', e)
-  }
-}
-
-function setStreamingUI(streaming) {
-  sending = streaming
-  sendBtn.disabled = streaming
-  sendBtn.style.display = streaming ? 'none' : 'flex'
-  abortBtn.style.display = streaming ? 'flex' : 'none'
-}
-
 // --- メッセージ送信 ---
 async function sendMessage() {
   const text = inputEl.value.trim()
-  if (!text || sending) return
-  setStreamingUI(true)
+  if (!text) return
+  if (!activeTabId || !tabs.has(activeTabId)) return
+
+  const tab = tabs.get(activeTabId)
+  if (tab.sending) return
+
+  tab.sending = true
+  updateStreamingUI(true)
+  renderTabs()
   inputEl.value = ''
   autoResize()
 
-  addMessage('user', text)
-  const assistantEl = addMessage('assistant', '')
+  // タブラベル更新（最初のメッセージ）
+  if (tab.label === 'New Chat') {
+    updateTabLabel(activeTabId, text)
+  }
+
+  const tabId = activeTabId
+  addMessage(tabId, 'user', text)
+  const assistantEl = addMessage(tabId, 'assistant', '')
   const content = assistantEl.querySelector('.content')
   content.innerHTML = '<div class="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>'
 
@@ -401,7 +537,7 @@ async function sendMessage() {
       body: JSON.stringify({
         message: text,
         project: currentProject,
-        sessionId,
+        sessionId: tab.sessionId,
         model: document.getElementById('model').value,
       }),
     })
@@ -429,44 +565,48 @@ async function sendMessage() {
           }
         }
         const data = dataLines.join('\n')
-        if (data) handleSSE(eventName, data, content, assistantEl)
+        if (data) handleSSE(tabId, eventName, data, content, assistantEl)
       }
     }
   } catch (e) {
     content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
   }
 
-  currentStreamId = null
-  setStreamingUI(false)
-  scrollToBottom()
+  tab.sending = false
+  tab.streamId = null
+  if (activeTabId === tabId) updateStreamingUI(false)
+  renderTabs()
+  scrollToBottom(tabId)
 }
 
-function handleSSE(event, data, content, msgEl) {
+function handleSSE(tabId, event, data, content, msgEl) {
+  const tab = tabs.get(tabId)
+  if (!tab) return
+
   if (event === 'text') {
     const typing = content.querySelector('.typing')
     if (typing) typing.remove()
 
-    if (!content._fullText) content._fullText = ''
-    content._fullText += data
+    if (!tab.fullTexts.has(content)) tab.fullTexts.set(content, '')
+    tab.fullTexts.set(content, tab.fullTexts.get(content) + data)
     const preserved = content.querySelectorAll('.tool-detail, .warning-badge')
     const preservedHTML = Array.from(preserved).map(el => el.outerHTML).join('')
-    content.innerHTML = preservedHTML + marked.parse(content._fullText)
-    scrollToBottom()
+    content.innerHTML = preservedHTML + marked.parse(tab.fullTexts.get(content))
+    scrollToBottom(tabId)
   }
 
   if (event === 'tool') {
     try {
       const info = JSON.parse(data)
       if (info.status === 'start') {
-        // ストリーミング中のバッジは不要（detailパネルで表示）
+        // detailパネルで表示するため不要
       }
       if (info.status === 'input' && info.detail) {
         const panel = createToolDetailPanel(info.detail)
-        // テキスト出力の前に挿入
         const firstText = content.querySelector('p, h1, h2, h3, ul, ol, pre, blockquote, table')
         if (firstText) firstText.before(panel)
         else content.prepend(panel)
-        scrollToBottom()
+        scrollToBottom(tabId)
       }
       if (info.status === 'output' && info.detail) {
         const panels = content.querySelectorAll('.tool-detail')
@@ -477,7 +617,7 @@ function handleSSE(event, data, content, msgEl) {
             break
           }
         }
-        scrollToBottom()
+        scrollToBottom(tabId)
       }
     } catch {}
   }
@@ -488,25 +628,25 @@ function handleSSE(event, data, content, msgEl) {
       const warn = document.createElement('div')
       warn.className = 'warning-badge'
       warn.setAttribute('data-testid', 'warning-badge')
-      warn.innerHTML = `&#9888; <strong>${esc(w.label)}</strong> ${esc(w.command)}`
+      warn.innerHTML = `<i class="icon-alert-triangle"></i> <strong>${esc(w.label)}</strong> ${esc(w.command)}`
       content.appendChild(warn)
-      scrollToBottom()
+      scrollToBottom(tabId)
     } catch {}
   }
 
   if (event === 'session') {
     try {
       const s = JSON.parse(data)
-      if (s.sessionId) sessionId = s.sessionId
-      if (s.streamId) currentStreamId = s.streamId
+      if (s.sessionId) tab.sessionId = s.sessionId
+      if (s.streamId) tab.streamId = s.streamId
     } catch {}
   }
 
   if (event === 'result') {
     try {
       const r = JSON.parse(data)
-      if (r.sessionId) sessionId = r.sessionId
-      if (r.text && !content._fullText) {
+      if (r.sessionId) tab.sessionId = r.sessionId
+      if (r.text && !tab.fullTexts.has(content)) {
         content.innerHTML = marked.parse(r.text)
       }
       if (r.cost || r.durationMs) {
@@ -536,17 +676,17 @@ function createToolDetailPanel(detail) {
   panel.setAttribute('data-testid', 'tool-detail')
 
   const summary = getToolSummary(detail)
-  const icon = TOOL_ICONS[detail.name] || '🔧'
+  const iconClass = TOOL_ICONS[detail.name] || 'icon-wrench'
 
   panel.innerHTML = `
     <div class="tool-detail-header" onclick="toggleToolDetail(this)">
-      <span class="tool-chevron">&#9654;</span>
+      <span class="tool-chevron"><i class="icon-chevron-right" style="font-size:9px"></i></span>
       <div class="tool-icon-label">
-        <span class="tool-emoji">${icon}</span>
+        <i class="${iconClass} tool-icon"></i>
         <span class="tool-name">${esc(detail.name)}</span>
       </div>
       <span class="tool-file">${esc(summary)}</span>
-      <span class="tool-status">&#10003;</span>
+      <span class="tool-status"><i class="icon-check" style="font-size:12px"></i></span>
     </div>
     <div class="tool-detail-body">${formatToolInput(detail)}</div>
   `
@@ -608,7 +748,9 @@ function toggleToolDetail(header) {
 }
 
 // --- UI helpers ---
-function addMessage(role, text) {
+function addMessage(tabId, role, text) {
+  const tab = tabs.get(tabId)
+  if (!tab) return
   const el = document.createElement('div')
   el.className = `msg ${role}`
   el.setAttribute('data-testid', `msg-${role}`)
@@ -617,13 +759,14 @@ function addMessage(role, text) {
   } else {
     el.innerHTML = `<div class="content">${text}</div>`
   }
-  messagesEl.appendChild(el)
-  scrollToBottom()
+  tab.messagesEl.appendChild(el)
+  scrollToBottom(tabId)
   return el
 }
 
-function scrollToBottom() {
-  requestAnimationFrame(() => messagesEl.scrollTop = messagesEl.scrollHeight)
+function scrollToBottom(tabId) {
+  const tab = tabs.get(tabId || activeTabId)
+  if (tab) requestAnimationFrame(() => tab.messagesEl.scrollTop = tab.messagesEl.scrollHeight)
 }
 
 function esc(s) {

@@ -21,7 +21,7 @@ test.describe('Web UI', () => {
     test('モデルセレクタが表示される', async ({ page }) => {
       const select = page.locator('#model')
       await expect(select).toBeVisible()
-      await expect(select).toHaveValue('sonnet')
+      await expect(select).toHaveValue('claude-sonnet-4-6')
     })
 
     test('入力エリアが表示される', async ({ page }) => {
@@ -38,6 +38,13 @@ test.describe('Web UI', () => {
     test('中断ボタンは初期非表示', async ({ page }) => {
       const abort = page.locator('#abort')
       await expect(abort).not.toBeVisible()
+    })
+
+    test('初期タブが1つ表示される', async ({ page }) => {
+      const tabs = page.locator('.tab')
+      await expect(tabs).toHaveCount(1)
+      await expect(tabs.first()).toHaveClass(/active/)
+      await expect(tabs.first()).toContainText('New Chat')
     })
   })
 
@@ -222,10 +229,65 @@ test.describe('Web UI', () => {
     })
   })
 
+  test.describe('マルチセッションタブ', () => {
+    test('新しいタブを追加できる', async ({ page }) => {
+      // 初期状態: 1タブ
+      await expect(page.locator('.tab')).toHaveCount(1)
+
+      // +ボタンで新しいタブ追加
+      await page.locator('.tab-add').click()
+
+      // 2タブになる
+      await expect(page.locator('.tab')).toHaveCount(2)
+
+      // 新しいタブがアクティブ
+      await expect(page.locator('.tab.active')).toContainText('New Chat')
+    })
+
+    test('タブ間を切り替えられる', async ({ page }) => {
+      // 最初のタブでメッセージ送信
+      await page.locator('#input').fill('first tab')
+      await page.locator('#send').click()
+      await page.locator('[data-testid="result-meta"]').first().waitFor({ timeout: 5000 })
+
+      // タブラベルが更新される
+      await expect(page.locator('.tab').first()).toContainText('first tab')
+
+      // 2つ目のタブを追加
+      await page.locator('.tab-add').click()
+      await expect(page.locator('.tab')).toHaveCount(2)
+
+      // 2つ目のタブでメッセージ送信
+      await page.locator('#input').fill('second tab')
+      await page.locator('#send').click()
+      // アクティブなメッセージエリア内のresult-metaを待つ
+      await page.locator('.messages.active [data-testid="result-meta"]').waitFor({ timeout: 5000 })
+
+      // 最初のタブに切り替え
+      await page.locator('.tab').first().click()
+
+      // 最初のタブのメッセージが見える
+      const activeMessages = page.locator('.messages.active')
+      await expect(activeMessages.locator('[data-testid="msg-user"]').first()).toContainText('first tab')
+    })
+
+    test('タブを閉じると別のタブに切り替わる', async ({ page }) => {
+      // 2つ目のタブを追加
+      await page.locator('.tab-add').click()
+      await expect(page.locator('.tab')).toHaveCount(2)
+
+      // 2つ目のタブの閉じるボタンをクリック
+      await page.locator('.tab-close').last().click()
+
+      // 1タブに戻る
+      await expect(page.locator('.tab')).toHaveCount(1)
+    })
+  })
+
   test.describe('プロジェクト切り替え', () => {
     test('プロジェクトドロワーにプロジェクト一覧が表示される', async ({ page }) => {
-      // ハンバーガーメニューを開く
-      await page.locator('button:has-text("☰")').click()
+      // フォルダボタンを開く
+      await page.locator('.header-btn:has(.icon-folder)').click()
       await expect(page.locator('#drawer')).toHaveClass(/open/)
 
       // Projects タブをクリック
@@ -239,7 +301,7 @@ test.describe('Web UI', () => {
     })
 
     test('プロジェクトを切り替えるとタイトルが変わる', async ({ page }) => {
-      await page.locator('button:has-text("☰")').click()
+      await page.locator('.header-btn:has(.icon-folder)').click()
       await page.locator('.drawer-tab[data-tab="projects"]').click()
       await page.locator('.project-item').nth(1).click()
 
@@ -251,8 +313,14 @@ test.describe('Web UI', () => {
   test.describe('モデル切り替え', () => {
     test('モデルを変更できる', async ({ page }) => {
       const select = page.locator('#model')
-      await select.selectOption('opus')
-      await expect(select).toHaveValue('opus')
+      await select.selectOption('claude-opus-4-6')
+      await expect(select).toHaveValue('claude-opus-4-6')
+    })
+
+    test('defaultモデルを選択できる', async ({ page }) => {
+      const select = page.locator('#model')
+      await select.selectOption('default')
+      await expect(select).toHaveValue('default')
     })
   })
 })
