@@ -41,6 +41,7 @@ chatRoutes.post('/', async (c) => {
     sessionId?: string
     model?: string
     planMode?: boolean
+    permissionMode?: string
   }>()
 
   if (!body.message?.trim()) {
@@ -59,7 +60,8 @@ chatRoutes.post('/', async (c) => {
         cwd,
         model,
         sessionId: body.sessionId,
-        planMode: body.planMode,
+        planMode: body.permissionMode === 'plan' || body.planMode,
+        permissionMode: body.permissionMode,
       })
 
       let lastSessionId = body.sessionId || ''

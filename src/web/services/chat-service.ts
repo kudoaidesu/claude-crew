@@ -18,6 +18,7 @@ export interface ChatParams {
   model: string
   sessionId?: string
   planMode?: boolean
+  permissionMode?: string
 }
 
 export interface ToolDetail {
@@ -84,12 +85,16 @@ async function loadSdk(): Promise<SdkModule> {
 // ── Query Options ビルダー（テスト可能） ──────────────
 
 export function buildQueryOptions(params: ChatParams): Record<string, unknown> {
+  // permissionMode: 'default' → 通常確認, 'plan' → 計画モード, 'auto-accept' → 自動承認
+  const mode = params.permissionMode || (params.planMode ? 'plan' : undefined)
+  const isBypass = !mode || mode === 'default'
+  const isAutoAccept = mode === 'auto-accept'
   const options: Record<string, unknown> = {
     cwd: params.cwd,
     model: params.model,
     maxTurns: 50,
-    permissionMode: params.planMode ? 'plan' : 'bypassPermissions',
-    allowDangerouslySkipPermissions: !params.planMode,
+    permissionMode: mode === 'plan' ? 'plan' : isAutoAccept ? 'acceptEdits' : 'bypassPermissions',
+    allowDangerouslySkipPermissions: isBypass,
     includePartialMessages: true,
     // Claude Code CLI 相当: プロジェクト設定 + ユーザー設定を自動読み込み
     settingSources: ['project', 'user'],

@@ -155,6 +155,14 @@ pre:hover .code-copy-btn{opacity:1}
 .attach-chip .attach-remove:hover{color:var(--danger)}
 .attach-chip .attach-thumb{width:24px;height:24px;border-radius:3px;object-fit:cover}
 
+/* ── トースト通知 ── */
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:var(--font-mono);font-size:13px;color:var(--text);max-width:90vw;min-width:200px;animation:fadeIn .15s}
+.toast h3{margin:0 0 8px;font-size:14px;color:var(--accent)}
+.toast p{margin:4px 0;color:var(--muted)}
+.toast .toast-value{color:var(--text-bright);font-weight:600}
+@keyframes fadeIn{from{opacity:0;transform:translate(-50%,-50%) scale(.95)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.toast-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199}
+
 /* ── ローディング ── */
 .typing{display:flex;align-items:center;gap:6px;padding:8px 0;color:var(--muted);font-size:13px}
 .typing-dots{display:flex;gap:3px}
@@ -248,7 +256,7 @@ pre:hover .code-copy-btn{opacity:1}
 <div class="header">
   <div class="header-logo" id="headerLogo"></div>
   <div class="header-spacer"></div>
-  <button class="header-btn" id="planToggle" onclick="togglePlanMode()" title="Plan Mode"></button>
+  <button class="header-btn" id="planToggle" onclick="cyclePermissionMode()" title="Permission Mode"></button>
   <button class="header-btn" id="historyBtn" onclick="openDrawer('sessions')" title="History"></button>
   <button class="header-btn" id="projectsBtn" onclick="openDrawer('projects')" title="Projects"></button>
 </div>
@@ -332,6 +340,12 @@ const ICONS = {
   'eraser':      '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
   'upload':      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
   'image':       '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  'copy':        '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  'dollar-sign': '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  'info':        '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'help-circle': '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  'edit-3':      '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  'download':    '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
 }
 
 function ic(name, size) {
@@ -348,7 +362,7 @@ const TOOL_ICON_MAP = {
 
 // --- ヘッダー等にアイコンを注入 ---
 document.getElementById('headerLogo').innerHTML = ic('terminal', 18) + '<span id="title">claude-crew</span>'
-document.getElementById('planToggle').innerHTML = ic('map-pin', 14) + '<span class="btn-label"> Plan</span>'
+document.getElementById('planToggle').innerHTML = ic('shield', 14) + '<span class="btn-label"> Default</span>'
 document.getElementById('historyBtn').innerHTML = ic('clock', 14) + '<span class="btn-label"> History</span>'
 document.getElementById('projectsBtn').innerHTML = ic('folder', 14)
 document.getElementById('tabAddBtn').innerHTML = ic('plus', 14)
@@ -359,6 +373,8 @@ document.getElementById('send').innerHTML = ic('send', 14)
 
 // --- State ---
 let currentProject = null
+let sessionTotalCost = 0
+let sessionTotalTurns = 0
 const sendBtn = document.getElementById('send')
 const abortBtn = document.getElementById('abort')
 const inputEl = document.getElementById('input')
@@ -403,18 +419,41 @@ function copyCode(btn) {
 
 // --- モデル選択（ヘッダーのselectのみで管理） ---
 
-// --- Plan Mode ---
-let planMode = false
-function togglePlanMode() {
-  planMode = !planMode
+// --- Permission Mode ---
+// 3 states: 'default' → 'plan' → 'auto-accept' → 'default'
+let permissionMode = 'default'
+const PERM_MODES = {
+  'default':     { label: 'Default', icon: 'shield', color: 'var(--muted)', banner: false },
+  'plan':        { label: 'Plan', icon: 'map-pin', color: 'var(--accent)', banner: true, bannerBg: 'var(--accent-dim)', bannerBorder: 'var(--accent-border)', bannerText: 'Claude will plan before acting' },
+  'auto-accept': { label: 'Auto', icon: 'zap', color: 'var(--warning)', banner: true, bannerBg: 'var(--warning-bg)', bannerBorder: 'rgba(249,226,175,.15)', bannerText: 'Auto-accept — Claude will act without asking' },
+}
+function cyclePermissionMode() {
+  const order = ['default', 'plan', 'auto-accept']
+  const idx = (order.indexOf(permissionMode) + 1) % order.length
+  setPermissionMode(order[idx])
+}
+function setPermissionMode(mode) {
+  permissionMode = mode
+  const cfg = PERM_MODES[mode]
   const btn = document.getElementById('planToggle')
   const banner = document.getElementById('planBanner')
-  btn.classList.toggle('active', planMode)
-  banner.classList.toggle('active', planMode)
-  banner.innerHTML = planMode
-    ? `${ic('map-pin', 13)} <span class="plan-label">Plan Mode</span> <span>Claude will plan before acting</span> <button class="plan-exit" onclick="togglePlanMode()">Exit</button>`
-    : ''
+  btn.innerHTML = ic(cfg.icon, 14) + `<span class="btn-label"> ${cfg.label}</span>`
+  btn.classList.toggle('active', mode !== 'default')
+  btn.style.color = mode !== 'default' ? cfg.color : ''
+  if (cfg.banner) {
+    banner.classList.add('active')
+    banner.style.background = cfg.bannerBg
+    banner.style.borderColor = cfg.bannerBorder
+    banner.style.color = cfg.color
+    banner.innerHTML = `${ic(cfg.icon, 13)} <span class="plan-label">${cfg.label} Mode</span> <span>${cfg.bannerText}</span> <button class="plan-exit" onclick="setPermissionMode('default')">Exit</button>`
+  } else {
+    banner.classList.remove('active')
+    banner.innerHTML = ''
+    banner.style = ''
+  }
 }
+// backward compat
+function togglePlanMode() { cyclePermissionMode() }
 
 // --- Compacting 表示 ---
 function showCompacting(show) {
@@ -436,6 +475,13 @@ function showCompactDone(trigger, preTokens) {
 const CMD_ITEMS = [
   { name: '/plan', desc: 'Toggle plan mode', icon: 'map-pin', action: () => togglePlanMode() },
   { name: '/compact', desc: 'Compact context', icon: 'zap', action: () => { inputEl.value = '/compact'; sendMessage() } },
+  { name: '/cost', desc: 'Show usage cost', icon: 'dollar-sign', action: () => showCostToast() },
+  { name: '/copy', desc: 'Copy last response', icon: 'copy', action: () => copyLastResponse() },
+  { name: '/rename', desc: 'Rename session', icon: 'edit-3', action: () => renameCurrentTab() },
+  { name: '/export', desc: 'Export conversation', icon: 'download', action: () => exportConversation() },
+  { name: '/model', desc: 'Change model', icon: 'bot', action: () => document.getElementById('model').focus() },
+  { name: '/status', desc: 'Show status info', icon: 'info', action: () => showStatusToast() },
+  { name: '/help', desc: 'Show shortcuts', icon: 'help-circle', action: () => showHelpToast() },
   { name: '/clear', desc: 'Clear chat', icon: 'eraser', action: () => clearCurrentTab() },
 ]
 let cmdMenuOpen = false
@@ -449,16 +495,115 @@ function closeCmdMenu() {
   cmdMenuOpen = false
   document.getElementById('cmdMenu').classList.remove('open')
 }
-function renderCmdMenu() {
+function renderCmdMenu(filter = '') {
   const menu = document.getElementById('cmdMenu')
-  menu.innerHTML = CMD_ITEMS.map((c, i) =>
-    `<div class="cmd-item" onclick="execCmd(${i})">${ic(c.icon, 15)} <span class="cmd-name">${c.name}</span> <span class="cmd-desc">${c.desc}</span></div>`
+  const filtered = CMD_ITEMS.map((c, i) => ({ ...c, idx: i })).filter(c => !filter || c.name.slice(1).startsWith(filter))
+  menu.innerHTML = filtered.map(c =>
+    `<div class="cmd-item" onclick="execCmd(${c.idx})">${ic(c.icon, 15)} <span class="cmd-name">${c.name}</span> <span class="cmd-desc">${c.desc}</span></div>`
   ).join('')
+  if (filtered.length === 0) menu.innerHTML = '<div class="cmd-item" style="color:var(--muted)">No matching commands</div>'
 }
 function execCmd(idx) {
   closeCmdMenu()
+  inputEl.value = ''
   CMD_ITEMS[idx].action()
 }
+// --- Toast helpers ---
+function showToast(html, autoClose = 3000) {
+  const existing = document.querySelector('.toast-backdrop')
+  if (existing) existing.remove()
+  const backdrop = document.createElement('div')
+  backdrop.className = 'toast-backdrop'
+  backdrop.onclick = () => backdrop.remove()
+  const toast = document.createElement('div')
+  toast.className = 'toast'
+  toast.innerHTML = html
+  toast.onclick = (e) => e.stopPropagation()
+  backdrop.appendChild(toast)
+  document.body.appendChild(backdrop)
+  if (autoClose) setTimeout(() => backdrop.remove(), autoClose)
+}
+
+function showCostToast() {
+  showToast(`
+    <h3>${ic('dollar-sign', 16)} Usage Cost</h3>
+    <p>Session total: <span class="toast-value">$${sessionTotalCost.toFixed(4)}</span></p>
+    <p>Total turns: <span class="toast-value">${sessionTotalTurns}</span></p>
+  `, 4000)
+}
+
+function copyLastResponse() {
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  const msgs = tab.messagesEl.querySelectorAll('.msg.assistant .content')
+  if (msgs.length === 0) return
+  const lastContent = msgs[msgs.length - 1]
+  const fullText = tab.fullTexts.get(lastContent)
+  const text = fullText || lastContent.textContent
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`<h3>${ic('check', 16)} Copied!</h3><p>Last response copied to clipboard</p>`, 1500)
+  }).catch(() => {
+    showToast(`<h3 style="color:var(--danger)">Copy failed</h3><p>Clipboard access denied</p>`, 2000)
+  })
+}
+
+function renameCurrentTab() {
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  const name = prompt('Session name:', tab.label)
+  if (name && name.trim()) {
+    tab.label = name.trim()
+    renderTabs()
+  }
+}
+
+function exportConversation() {
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  const msgs = tab.messagesEl.querySelectorAll('.msg')
+  if (msgs.length === 0) { showToast('<p>No messages to export</p>', 1500); return }
+  let md = `# ${tab.label}\n\n`
+  msgs.forEach(msg => {
+    const role = msg.classList.contains('user') ? 'User' : 'Assistant'
+    const content = msg.querySelector('.content')
+    const text = tab.fullTexts.get(content) || content.textContent
+    md += `## ${role}\n\n${text}\n\n---\n\n`
+  })
+  navigator.clipboard.writeText(md).then(() => {
+    showToast(`<h3>${ic('check', 16)} Exported!</h3><p>${msgs.length} messages copied as Markdown</p>`, 2000)
+  }).catch(() => {
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = (tab.label || 'chat') + '.md'
+    a.click()
+    showToast(`<h3>${ic('check', 16)} Downloaded!</h3>`, 1500)
+  })
+}
+
+function showStatusToast() {
+  const tab = tabs.get(activeTabId)
+  const model = document.getElementById('model').value
+  showToast(`
+    <h3>${ic('info', 16)} Status</h3>
+    <p>Model: <span class="toast-value">${model}</span></p>
+    <p>Project: <span class="toast-value">${currentProject || 'None'}</span></p>
+    <p>Session: <span class="toast-value">${tab?.sessionId || 'New'}</span></p>
+    <p>Tabs: <span class="toast-value">${tabs.size}</span></p>
+    <p>Cost: <span class="toast-value">$${sessionTotalCost.toFixed(4)}</span></p>
+  `, 5000)
+}
+
+function showHelpToast() {
+  showToast(`
+    <h3>${ic('help-circle', 16)} Shortcuts</h3>
+    <p><span class="toast-value">Enter</span> Send message</p>
+    <p><span class="toast-value">Shift+Enter</span> New line</p>
+    <p><span class="toast-value">/</span> Open command menu</p>
+    <p style="margin-top:8px;font-size:12px;color:var(--muted)">Tap outside to close</p>
+  `, 0)
+}
+
 function clearCurrentTab() {
   const tab = tabs.get(activeTabId)
   if (!tab) return
@@ -788,7 +933,7 @@ async function sendMessage() {
         project: currentProject,
         sessionId: tab.sessionId,
         model: document.getElementById('model').value,
-        planMode,
+        permissionMode,
       }),
     })
 
@@ -896,6 +1041,8 @@ function handleSSE(tabId, event, data, content, msgEl) {
       if (r.text && !tab.fullTexts.has(content)) {
         content.innerHTML = marked.parse(r.text)
       }
+      if (r.cost) sessionTotalCost += r.cost
+      if (r.turns) sessionTotalTurns += r.turns
       if (r.cost || r.durationMs) {
         const meta = document.createElement('div')
         meta.className = 'meta'
@@ -920,9 +1067,7 @@ function handleSSE(tabId, event, data, content, msgEl) {
       const s = JSON.parse(data)
       if (s.status === 'compacting') showCompacting(true)
       if (s.permissionMode) {
-        planMode = s.permissionMode === 'plan'
-        document.getElementById('planToggle').classList.toggle('active', planMode)
-        document.getElementById('planBanner').classList.toggle('active', planMode)
+        setPermissionMode(s.permissionMode === 'plan' ? 'plan' : s.permissionMode === 'auto-accept' ? 'auto-accept' : 'default')
       }
     } catch {}
   }
@@ -1059,8 +1204,13 @@ inputEl.addEventListener('keydown', (e) => {
 // `/` in empty input opens command menu
 inputEl.addEventListener('input', () => {
   autoResize()
-  if (inputEl.value === '/') toggleCmdMenu()
-  else closeCmdMenu()
+  const val = inputEl.value
+  if (val.startsWith('/') && !val.includes(' ')) {
+    if (!cmdMenuOpen) { cmdMenuOpen = true; document.getElementById('cmdMenu').classList.add('open') }
+    renderCmdMenu(val.slice(1).toLowerCase())
+  } else {
+    closeCmdMenu()
+  }
 })
 
 init()

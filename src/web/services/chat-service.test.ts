@@ -342,6 +342,24 @@ describe('chat-service', () => {
       expect(opts.allowDangerouslySkipPermissions).toBe(true)
     })
 
+    it('permissionMode "plan" → plan モード', () => {
+      const opts = buildQueryOptions({ message: 'hello', cwd: '/tmp', model: 'sonnet', permissionMode: 'plan' })
+      expect(opts.permissionMode).toBe('plan')
+      expect(opts.allowDangerouslySkipPermissions).toBe(false)
+    })
+
+    it('permissionMode "auto-accept" → acceptEdits モード', () => {
+      const opts = buildQueryOptions({ message: 'hello', cwd: '/tmp', model: 'sonnet', permissionMode: 'auto-accept' })
+      expect(opts.permissionMode).toBe('acceptEdits')
+      expect(opts.allowDangerouslySkipPermissions).toBe(false)
+    })
+
+    it('permissionMode "default" → bypassPermissions モード', () => {
+      const opts = buildQueryOptions({ message: 'hello', cwd: '/tmp', model: 'sonnet', permissionMode: 'default' })
+      expect(opts.permissionMode).toBe('bypassPermissions')
+      expect(opts.allowDangerouslySkipPermissions).toBe(true)
+    })
+
     it('複数のtool_useブロック → それぞれの input イベントを返す', () => {
       const msg: SdkMessage = {
         type: 'assistant',
