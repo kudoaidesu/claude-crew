@@ -12,6 +12,12 @@ const log = createLogger('web:chat-service')
 
 // ── 型定義 ──────────────────────────────────────────
 
+export interface ImageParam {
+  name: string
+  mediaType: string
+  data: string  // base64 encoded
+}
+
 export interface ChatParams {
   message: string
   cwd: string
@@ -19,6 +25,7 @@ export interface ChatParams {
   sessionId?: string
   planMode?: boolean
   permissionMode?: string
+  images?: ImageParam[]
 }
 
 export interface ToolDetail {
@@ -74,7 +81,7 @@ export interface SdkMessage {
 // ── SDK ローダー ────────────────────────────────────
 
 interface SdkModule {
-  query: (params: { prompt: string; options: Record<string, unknown> }) => AsyncIterable<SdkMessage>
+  query: (params: { prompt: string | AsyncIterable<unknown>; options: Record<string, unknown> }) => AsyncIterable<SdkMessage>
 }
 
 let sdkModule: SdkModule | null = null
@@ -255,12 +262,37 @@ export async function* createChatStream(params: ChatParams): AsyncGenerator<Chat
   // AbortSignal を options に追加
   options.abortController = abortController
 
-  log.info(`Chat request [${streamId}]: "${params.message.slice(0, 60)}..." cwd=${params.cwd} model=${params.model}`)
+  const imgCount = params.images?.length || 0
+  log.info(`Chat request [${streamId}]: "${params.message.slice(0, 60)}..." cwd=${params.cwd} model=${params.model} images=${imgCount}`)
 
   // streamId を最初に通知
   yield { type: 'session', sessionId: '' } as ChatEvent & { streamId?: string }
 
-  const queryStream = sdk.query({ prompt: params.message, options })
+  // 画像がある場合はコンテンツブロック配列で送信（Agent SDK のマルチモーダル対応）
+  let prompt: string | AsyncIterable<unknown>
+  if (params.images && params.images.length > 0) {
+    const content: Array<Record<string, unknown>> = []
+    if (params.message) {
+      content.push({ type: 'text', text: params.message })
+    }
+    for (const img of params.images) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: img.mediaType, data: img.data },
+      })
+    }
+    async function* promptGen() {
+      yield {
+        type: 'user',
+        message: { role: 'user', content },
+      }
+    }
+    prompt = promptGen()
+  } else {
+    prompt = params.message
+  }
+
+  const queryStream = sdk.query({ prompt, options })
   let sessionId = params.sessionId || ''
 
   try {

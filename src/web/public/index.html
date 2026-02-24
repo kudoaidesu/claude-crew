@@ -322,7 +322,7 @@ pre:hover .code-copy-btn{opacity:1}
     <div class="git-statusbar-pill" id="tokenPill" onclick="event.stopPropagation();triggerCompact()" title="Context usage — tap to compact" style="display:none"></div>
   </div>
   <div class="cmd-menu" id="cmdMenu"></div>
-  <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+  <input type="file" id="fileInput" multiple style="display:none">
   <div class="input-box">
     <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="enter"></textarea>
     <div class="input-footer">
@@ -561,6 +561,8 @@ function restoreProjectTabs(projectPath) {
         sending: false,
         fetchController: null,
         sendingPromise: null,
+        compacting: false,
+        pendingMessage: null,
         messagesEl,
         fullTexts: new WeakMap(),
         label: saved.label || 'New Chat',
@@ -771,6 +773,9 @@ function triggerCompact() {
     return
   }
 
+  tab.compacting = true
+  showCompacting(true)
+
   const pill = document.getElementById('tokenPill')
   pill.classList.add('compact-running')
   pill.innerHTML = `${ic('zap', 12)} Compacting...`
@@ -786,12 +791,33 @@ function triggerCompact() {
     if (res.started) {
       pollCompactStatus(tab.sessionId)
     } else {
+      tab.compacting = false
+      showCompacting(false)
       pill.classList.remove('compact-running')
       showToast(`<p>Compact: ${res.reason || 'could not start'}</p>`, 3000)
     }
   }).catch(() => {
+    tab.compacting = false
+    showCompacting(false)
     pill.classList.remove('compact-running')
   })
+}
+
+/** コンパクト完了後にキューされたメッセージを自動送信 */
+function flushPendingAfterCompact(tabId) {
+  const tid = tabId || activeTabId
+  const tab = tabs.get(tid)
+  if (!tab) return
+  tab.compacting = false
+  showCompacting(false)
+  if (tab.pendingMessage && tid === activeTabId) {
+    inputEl.value = tab.pendingMessage
+    tab.pendingMessage = null
+    setTimeout(() => sendMessage(), 100)
+  } else if (tab.pendingMessage) {
+    // 別タブにいる場合は入力欄に戻してトースト通知
+    showToast('Compact done. Switch back to send queued message.', 3000)
+  }
 }
 
 function pollCompactStatus(sessionId) {
@@ -806,10 +832,11 @@ function pollCompactStatus(sessionId) {
           const pill = document.getElementById('tokenPill')
           pill.classList.remove('compact-running')
           showCompactDone('manual', job.preTokens)
-          // トークン情報をリセット（コンパクト後は不明）
           lastInputTokens = 0
           pill.innerHTML = `${ic('cpu', 12)} compacted`
           setTimeout(() => { if (!lastInputTokens) pill.style.display = 'none' }, 5000)
+          // キューされたメッセージを自動送信
+          flushPendingAfterCompact(activeTabId)
         } else if (job.status === 'error') {
           clearInterval(compactPollTimer)
           compactPollTimer = null
@@ -817,6 +844,16 @@ function pollCompactStatus(sessionId) {
           pill.classList.remove('compact-running')
           showToast(`<p>Compact error: ${job.error || 'unknown'}</p>`, 4000)
           updateTokenUsage(lastInputTokens, lastContextWindow)
+          // エラー時はメッセージを入力欄に戻す
+          const tab = tabs.get(activeTabId)
+          if (tab) {
+            tab.compacting = false
+            showCompacting(false)
+            if (tab.pendingMessage) {
+              inputEl.value = tab.pendingMessage
+              tab.pendingMessage = null
+            }
+          }
         }
       })
       .catch(() => {})
@@ -838,6 +875,8 @@ function checkCompactJobOnTabSwitch(tab) {
     .then(r => r.json())
     .then(job => {
       if (job.status === 'running') {
+        tab.compacting = true
+        showCompacting(true)
         pill.style.display = 'flex'
         pill.classList.add('compact-running')
         pill.innerHTML = `${ic('zap', 12)} Compacting...`
@@ -1024,19 +1063,44 @@ function renderAttachments() {
   })
 }
 
+const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/i
+
+function isImageFile(file) {
+  return file.type.startsWith('image/') || IMAGE_EXTS.test(file.name)
+}
+
+/** テキストペイロードと画像配列を分離して返す */
 function buildFilePayload() {
-  if (pendingFiles.length === 0) return ''
-  const parts = pendingFiles.map(f => f.isImage ? `[image: ${f.name}]\n${f.data}` : `--- ${f.name} ---\n${f.data}`)
+  if (pendingFiles.length === 0) return { text: '', images: [] }
+  const textParts = []
+  const images = []
+  for (const f of pendingFiles) {
+    if (f.isImage && f.data && !f.data.startsWith('(')) {
+      // data:image/jpeg;base64,/9j/... → mediaType + base64 data を分離
+      const match = f.data.match(/^data:([^;]+);base64,(.+)$/)
+      if (match) {
+        images.push({ name: f.name, mediaType: match[1], data: match[2] })
+      } else {
+        textParts.push(`[image: ${f.name}] (unsupported format)`)
+      }
+    } else {
+      textParts.push(`--- ${f.name} ---\n${f.data}`)
+    }
+  }
   pendingFiles.length = 0
   renderAttachments()
-  return parts.join('\n\n')
+  return { text: textParts.join('\n\n'), images }
 }
 
 document.getElementById('fileInput').addEventListener('change', async (e) => {
   const files = e.target.files
   if (!files || files.length === 0) return
   for (const file of files) {
-    if (file.type.startsWith('image/')) {
+    if (file.size > 20 * 1024 * 1024) {
+      showToast(`<p>File too large: ${esc(file.name)} (max 20MB)</p>`, 3000)
+      continue
+    }
+    if (isImageFile(file)) {
       try {
         const reader = new FileReader()
         const dataUrl = await new Promise((resolve, reject) => {
@@ -1045,12 +1109,12 @@ document.getElementById('fileInput').addEventListener('change', async (e) => {
           reader.readAsDataURL(file)
         })
         pendingFiles.push({ name: file.name, data: dataUrl, isImage: true, thumb: dataUrl })
-      } catch { pendingFiles.push({ name: file.name, data: `(読み込みエラー)`, isImage: true }) }
+      } catch { pendingFiles.push({ name: file.name, data: `(読み込みエラー: ${file.name})`, isImage: false }) }
     } else {
       try {
         const text = await file.text()
         pendingFiles.push({ name: file.name, data: text, isImage: false })
-      } catch { pendingFiles.push({ name: file.name, data: `(読み込みエラー)`, isImage: false }) }
+      } catch { pendingFiles.push({ name: file.name, data: `(読み込みエラー: ${file.name})`, isImage: false }) }
     }
   }
   renderAttachments()
@@ -1072,6 +1136,8 @@ function createNewTab(label) {
     sending: false,
     fetchController: null,
     sendingPromise: null,
+    compacting: false,
+    pendingMessage: null,
     messagesEl,
     fullTexts: new WeakMap(),
     label: label || 'New Chat',
@@ -1169,6 +1235,7 @@ function updateInputBoxModeColor() {
 function abortCurrentTab() {
   const tab = tabs.get(activeTabId)
   if (!tab || !tab.sending) return
+  if (tab.compacting) return  // コンパクト中は中断不可
   // クライアント側のfetchを即座に中断
   if (tab.fetchController) {
     tab.fetchController.abort()
@@ -1526,13 +1593,24 @@ function resumeSession(s) {
 
 // --- メッセージ送信 ---
 async function sendMessage() {
-  const filePayload = buildFilePayload()
+  const { text: fileText, images: fileImages } = buildFilePayload()
   const raw = inputEl.value.trim()
-  const text = filePayload ? (raw ? raw + '\n\n' + filePayload : filePayload) : raw
-  if (!text) return
+  const text = fileText ? (raw ? raw + '\n\n' + fileText : fileText) : raw
+  if (!text && fileImages.length === 0) return
   if (!activeTabId || !tabs.has(activeTabId)) return
 
   const tab = tabs.get(activeTabId)
+
+  // コンパクティング中はメッセージをキューイング（完了後に自動送信）
+  if (tab.compacting) {
+    tab.pendingMessage = text
+    inputEl.value = ''
+    autoResize()
+    const banner = document.getElementById('compactBanner')
+    banner.classList.add('active')
+    banner.innerHTML = `${ic('zap', 13)} <span>Compacting... message queued, will send after</span>`
+    return
+  }
 
   // 処理中なら中断してから送信（前のストリームを完全に停止してから新しいリクエストを開始）
   if (tab.sending) {
@@ -1567,7 +1645,9 @@ async function sendMessage() {
   }
 
   const tabId = activeTabId
-  addMessage(tabId, 'user', raw || '(ファイル添付)')
+  const imageNames = fileImages.map(i => i.name).join(', ')
+  const displayMsg = raw || (imageNames ? `📎 ${imageNames}` : '(ファイル添付)')
+  addMessage(tabId, 'user', displayMsg)
   const assistantEl = addMessage(tabId, 'assistant', '')
   const content = assistantEl.querySelector('.content')
   content.innerHTML = '<div class="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>'
@@ -1581,11 +1661,12 @@ async function sendMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: text,
+        message: text || '(添付ファイルを確認してください)',
         project: currentProject,
         sessionId: tab.sessionId,
         model: document.getElementById('model').value,
         permissionMode,
+        images: fileImages.length > 0 ? fileImages : undefined,
       }),
       signal: fetchController.signal,
     })
@@ -1617,8 +1698,14 @@ async function sendMessage() {
       }
     }
   } catch (e) {
-    // AbortError は割り込み中断なのでエラー表示しない
-    if (e.name !== 'AbortError') {
+    if (e.name === 'AbortError') {
+      // 割り込み中断: タイピングドットを削除、コンテンツが空なら要素ごと削除
+      const typing = content.querySelector('.typing')
+      if (typing) typing.remove()
+      if (!content.textContent.trim() && !content.querySelector('.tool-detail')) {
+        assistantEl.remove()
+      }
+    } else {
       content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
     }
   }
@@ -1723,7 +1810,10 @@ function handleSSE(tabId, event, data, content, msgEl) {
   if (event === 'status') {
     try {
       const s = JSON.parse(data)
-      if (s.status === 'compacting') showCompacting(true)
+      if (s.status === 'compacting') {
+        showCompacting(true)
+        if (tab) tab.compacting = true
+      }
       if (s.permissionMode) {
         setPermissionMode(s.permissionMode === 'plan' ? 'plan' : s.permissionMode === 'auto-accept' ? 'auto-accept' : 'default')
       }
@@ -1733,8 +1823,9 @@ function handleSSE(tabId, event, data, content, msgEl) {
   if (event === 'compact') {
     try {
       const c = JSON.parse(data)
-      showCompacting(false)
       showCompactDone(c.trigger, c.preTokens)
+      // 自動コンパクト完了 → キューされたメッセージを自動送信
+      flushPendingAfterCompact(tabId)
     } catch {}
   }
 

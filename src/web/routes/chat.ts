@@ -248,10 +248,11 @@ chatRoutes.post('/', async (c) => {
     model?: string
     planMode?: boolean
     permissionMode?: string
+    images?: Array<{ name: string; mediaType: string; data: string }>
   }>()
 
-  if (!body.message?.trim()) {
-    return c.json({ error: 'message is required' }, 400)
+  if (!body.message?.trim() && (!body.images || body.images.length === 0)) {
+    return c.json({ error: 'message or images required' }, 400)
   }
 
   const cwd = body.project || process.cwd()
@@ -268,6 +269,7 @@ chatRoutes.post('/', async (c) => {
         sessionId: body.sessionId,
         planMode: body.permissionMode === 'plan' || body.planMode,
         permissionMode: body.permissionMode,
+        images: body.images,
       })
 
       let lastSessionId = body.sessionId || ''
