@@ -12,87 +12,182 @@
   --bg:#0d1117;--surface:#161b22;--border:#30363d;
   --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;
   --warning:#d29922;--danger:#f85149;--success:#3fb950;
-  --radius:12px;
+  --font-mono:'SF Mono',Menlo,'Cascadia Code',Consolas,monospace;
+  --diff-add:rgba(63,185,80,.15);--diff-del:rgba(248,81,73,.15);
+  --diff-add-text:#3fb950;--diff-del-text:#f85149;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;font-size:15px}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:14px;line-height:1.6}
 body{display:flex;flex-direction:column;height:100dvh}
 
-/* ヘッダー */
-.header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
-.header h1{font-size:16px;font-weight:600;flex:1}
-.header select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:13px}
+/* ── ヘッダー ── */
+.header{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.header h1{font-size:14px;font-weight:600;flex:1;color:var(--accent)}
+.header select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:12px;font-family:var(--font-mono)}
+.header button{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px}
 
-/* メッセージエリア */
+/* ── メッセージエリア ── */
 .messages{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
-.msg{margin-bottom:16px;max-width:100%}
-.msg.user .bubble{background:var(--accent);color:#fff;border-radius:var(--radius) var(--radius) 4px var(--radius);margin-left:40px;padding:10px 14px;word-break:break-word}
-.msg.assistant .bubble{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius) var(--radius) var(--radius) 4px;margin-right:20px;padding:12px 14px;word-break:break-word}
-.msg.assistant .bubble pre{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:10px;overflow-x:auto;margin:8px 0;font-size:13px}
-.msg.assistant .bubble code{font-family:'SF Mono',Menlo,monospace;font-size:13px}
-.msg.assistant .bubble p code{background:rgba(110,118,129,.4);padding:2px 6px;border-radius:4px}
-.msg.assistant .bubble p{margin:6px 0}
-.msg.assistant .bubble ul,.msg.assistant .bubble ol{padding-left:20px;margin:6px 0}
 
-/* ツール使用表示 */
-.tool-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(88,166,255,.15);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:12px;margin:4px 4px 4px 0}
+/* ユーザー入力: ❯ プロンプト風 */
+.msg{margin-bottom:4px}
+.msg.user .content{color:var(--text);font-weight:600;white-space:pre-wrap;word-break:break-word}
+.msg.user .content::before{content:'❯ ';color:var(--accent);font-weight:700}
 
-/* 危険コマンド警告 */
-.warning-badge{display:flex;align-items:center;gap:6px;background:rgba(210,153,34,.15);color:var(--warning);border:1px solid rgba(210,153,34,.3);border-radius:8px;padding:8px 12px;font-size:13px;margin:8px 0}
+/* アシスタント出力 */
+.msg.assistant{margin-bottom:20px}
+.msg.assistant .content{color:var(--text);word-break:break-word;font-family:-apple-system,system-ui,'Segoe UI',sans-serif;font-size:14px;line-height:1.7}
 
-/* コスト表示 */
-.meta{font-size:12px;color:var(--muted);margin-top:6px;display:flex;gap:12px}
+/* ── マークダウン要素 ── */
+.msg.assistant .content h1{font-size:20px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);color:var(--text)}
+.msg.assistant .content h2{font-size:17px;font-weight:700;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text)}
+.msg.assistant .content h3{font-size:15px;font-weight:700;margin:14px 0 6px;color:var(--text)}
+.msg.assistant .content h4{font-size:14px;font-weight:600;margin:12px 0 4px;color:var(--muted)}
+.msg.assistant .content p{margin:8px 0}
+.msg.assistant .content ul,.msg.assistant .content ol{padding-left:24px;margin:8px 0}
+.msg.assistant .content li{margin:3px 0}
+.msg.assistant .content li::marker{color:var(--muted)}
+.msg.assistant .content strong{color:#fff;font-weight:700}
+.msg.assistant .content em{color:var(--muted);font-style:italic}
+.msg.assistant .content hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+.msg.assistant .content a{color:var(--accent);text-decoration:none}
+.msg.assistant .content a:hover{text-decoration:underline}
 
-/* 入力エリア */
-.input-area{border-top:1px solid var(--border);background:var(--surface);padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));flex-shrink:0}
+/* コードブロック */
+.msg.assistant .content pre{position:relative;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;margin:10px 0;font-size:13px;line-height:1.5}
+.msg.assistant .content code{font-family:var(--font-mono);font-size:13px}
+.msg.assistant .content p code,
+.msg.assistant .content li code{background:rgba(110,118,129,.4);padding:2px 6px;border-radius:3px;font-size:12px}
+.msg.assistant .content pre code{background:none;padding:0;border-radius:0;font-size:13px}
+
+/* コピーボタン */
+.code-copy-btn{position:absolute;top:6px;right:6px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px;font-family:var(--font-mono);cursor:pointer;opacity:0;transition:opacity .15s}
+pre:hover .code-copy-btn{opacity:1}
+.code-copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.code-copy-btn.copied{color:var(--success);border-color:var(--success)}
+
+/* テーブル */
+.msg.assistant .content table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;font-family:var(--font-mono)}
+.msg.assistant .content th{background:var(--surface);color:var(--text);font-weight:600;text-align:left;padding:8px 12px;border:1px solid var(--border)}
+.msg.assistant .content td{padding:6px 12px;border:1px solid var(--border);color:var(--text)}
+.msg.assistant .content tr:nth-child(even) td{background:rgba(22,27,34,.5)}
+
+/* 引用 */
+.msg.assistant .content blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:10px 0;color:var(--muted);background:rgba(88,166,255,.05);border-radius:0 4px 4px 0}
+
+/* ── ツールバッジ ── */
+.tools-row{margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px}
+.tool-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.2);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--font-mono)}
+.tool-badge.active{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── ツール詳細パネル ── */
+.tool-detail{margin:6px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-family:var(--font-mono);font-size:12px}
+.tool-detail-header{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface);cursor:pointer;user-select:none}
+.tool-detail-header:hover{background:rgba(88,166,255,.05)}
+.tool-detail-header .tool-icon{font-size:10px;transition:transform .15s;color:var(--muted)}
+.tool-detail-header .tool-icon.open{transform:rotate(90deg)}
+.tool-detail-header .tool-name{color:var(--accent);font-weight:600}
+.tool-detail-header .tool-file{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tool-detail-body{display:none;padding:8px 10px;background:var(--bg);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.4}
+.tool-detail-body.open{display:block}
+
+/* diff表示 */
+.diff-line{padding:0 4px}
+.diff-add{background:var(--diff-add);color:var(--diff-add-text)}
+.diff-del{background:var(--diff-del);color:var(--diff-del-text)}
+.diff-hunk{color:var(--accent);font-weight:600;margin-top:4px}
+
+/* ── 警告バッジ ── */
+.warning-badge{display:flex;align-items:center;gap:6px;background:rgba(210,153,34,.1);color:var(--warning);border:1px solid rgba(210,153,34,.25);border-radius:4px;padding:6px 10px;font-size:12px;margin:6px 0;font-family:var(--font-mono)}
+
+/* ── コスト表示 ── */
+.meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;gap:12px;font-family:var(--font-mono)}
+
+/* ── 入力エリア ── */
+.input-area{border-top:1px solid var(--border);background:var(--surface);padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom));flex-shrink:0}
 .input-row{display:flex;gap:8px;align-items:flex-end}
-.input-row textarea{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:15px;font-family:inherit;resize:none;min-height:44px;max-height:120px;line-height:1.4}
-.input-row textarea:focus{outline:none;border-color:var(--accent)}
-.input-row button{width:44px;height:44px;border:none;border-radius:50%;background:var(--accent);color:#fff;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.input-row button:disabled{opacity:.4;cursor:not-allowed}
+.input-row::before{content:'❯';color:var(--accent);font-weight:700;font-size:15px;padding:8px 0;flex-shrink:0}
+.input-row textarea{flex:1;background:transparent;color:var(--text);border:none;border-bottom:1px solid var(--border);padding:8px 4px;font-size:14px;font-family:var(--font-mono);resize:none;min-height:36px;max-height:120px;line-height:1.4}
+.input-row textarea:focus{outline:none;border-bottom-color:var(--accent)}
+.input-row textarea::placeholder{color:var(--muted)}
+.input-row button{width:36px;height:36px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--accent);font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono)}
+.input-row button:hover{background:rgba(88,166,255,.1)}
+.input-row button:disabled{opacity:.3;cursor:not-allowed}
+/* 中断ボタン */
+#abort{display:none;color:var(--danger);border-color:var(--danger)}
+#abort:hover{background:rgba(248,81,73,.1)}
 
-/* ローディング */
+/* ── ローディング ── */
 .typing{display:flex;gap:4px;padding:6px 0}
-.typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce .6s infinite alternate}
+.typing span{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate;opacity:.6}
 .typing span:nth-child(2){animation-delay:.2s}
 .typing span:nth-child(3){animation-delay:.4s}
-@keyframes bounce{to{opacity:.3;transform:translateY(-4px)}}
+@keyframes bounce{to{opacity:.2;transform:translateY(-3px)}}
 
-/* プロジェクト選択ドロワー */
+/* ── ドロワー（共通） ── */
 .drawer{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:10;display:none}
 .drawer.open{display:block}
-.drawer-content{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-radius:16px 16px 0 0;padding:20px 16px;padding-bottom:calc(20px + env(safe-area-inset-bottom));max-height:60vh;overflow-y:auto}
-.drawer-content h2{font-size:16px;margin-bottom:12px}
-.project-item{display:flex;flex-direction:column;padding:12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer}
-.project-item:hover,.project-item.active{border-color:var(--accent);background:rgba(88,166,255,.08)}
-.project-item .name{font-weight:600;font-size:14px}
-.project-item .path{font-size:12px;color:var(--muted);margin-top:2px}
+.drawer-content{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-radius:12px 12px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto;border:1px solid var(--border)}
+.drawer-content h2{font-size:14px;margin-bottom:10px;color:var(--accent)}
+
+/* プロジェクトアイテム */
+.project-item{display:flex;flex-direction:column;padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;cursor:pointer;font-family:var(--font-mono)}
+.project-item:hover,.project-item.active{border-color:var(--accent);background:rgba(88,166,255,.05)}
+.project-item .name{font-weight:600;font-size:13px;color:var(--text)}
+.project-item .path{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* セッションアイテム */
+.session-item{display:flex;flex-direction:column;padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;cursor:pointer;font-family:var(--font-mono)}
+.session-item:hover{border-color:var(--accent);background:rgba(88,166,255,.05)}
+.session-item.active{border-color:var(--success);background:rgba(63,185,80,.05)}
+.session-item .preview{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-item .session-meta{display:flex;gap:8px;font-size:11px;color:var(--muted);margin-top:4px}
+.session-item .delete-session{align-self:flex-end;color:var(--danger);background:none;border:none;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font-mono)}
+.session-item .delete-session:hover{text-decoration:underline}
+
+/* ── ドロワータブ ── */
+.drawer-tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)}
+.drawer-tab{padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:var(--font-mono);border-bottom:2px solid transparent}
+.drawer-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.drawer-tab-content{display:none}
+.drawer-tab-content.active{display:block}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1 id="title">Claude Code</h1>
+  <h1 id="title">claude-crew</h1>
   <select id="model">
-    <option value="sonnet">Sonnet</option>
-    <option value="opus">Opus</option>
-    <option value="haiku">Haiku</option>
+    <option value="sonnet">sonnet</option>
+    <option value="opus">opus</option>
+    <option value="haiku">haiku</option>
   </select>
-  <button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer" onclick="openDrawer()">&#9776;</button>
+  <button id="historyBtn" onclick="openDrawer('sessions')" title="Sessions">&#128340;</button>
+  <button onclick="openDrawer('projects')" title="Projects">&#9776;</button>
 </div>
 
 <div class="messages" id="messages"></div>
 
 <div class="input-area">
   <div class="input-row">
-    <textarea id="input" rows="1" placeholder="Claude に指示を送る..." enterkeyhint="send"></textarea>
+    <textarea id="input" rows="1" placeholder="Send a message..." enterkeyhint="send"></textarea>
+    <button id="abort" onclick="abortCurrentStream()" title="Abort">&#9632;</button>
     <button id="send" onclick="sendMessage()">&#9654;</button>
   </div>
 </div>
 
 <div class="drawer" id="drawer" onclick="closeDrawer()">
   <div class="drawer-content" onclick="event.stopPropagation()">
-    <h2>Projects</h2>
-    <div id="projectList"></div>
+    <div class="drawer-tabs">
+      <button class="drawer-tab active" data-tab="projects" onclick="switchDrawerTab('projects')">Projects</button>
+      <button class="drawer-tab" data-tab="sessions" onclick="switchDrawerTab('sessions')">Sessions</button>
+    </div>
+    <div id="projectsTab" class="drawer-tab-content active">
+      <div id="projectList"></div>
+    </div>
+    <div id="sessionsTab" class="drawer-tab-content">
+      <div id="sessionList"></div>
+    </div>
   </div>
 </div>
 
@@ -100,30 +195,67 @@ body{display:flex;flex-direction:column;height:100dvh}
 <script>
 // --- State ---
 let sessionId = null
+let currentStreamId = null
 let currentProject = null
 let sending = false
 const messagesEl = document.getElementById('messages')
 const inputEl = document.getElementById('input')
 const sendBtn = document.getElementById('send')
+const abortBtn = document.getElementById('abort')
+
+// --- marked カスタムレンダラー（コピーボタン付きコードブロック） ---
+const renderer = new marked.Renderer()
+renderer.code = function({ text, lang }) {
+  const langLabel = lang ? esc(lang) : ''
+  const escaped = esc(text)
+  return `<pre><button class="code-copy-btn" onclick="copyCode(this)" data-testid="code-copy-btn">Copy</button><code class="language-${langLabel}">${escaped}</code></pre>`
+}
+marked.setOptions({ renderer, breaks: true })
+
+// --- コードコピー ---
+function copyCode(btn) {
+  const code = btn.parentElement.querySelector('code')
+  const text = code.textContent
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 1500)
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea')
+    ta.value = text
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    btn.textContent = 'Copied!'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 1500)
+  })
+}
 
 // --- 初期化 ---
 async function init() {
   try {
     const res = await fetch('/api/projects', { credentials: 'include' })
     const projects = await res.json()
-    const list = document.getElementById('projectList')
-    list.innerHTML = ''
-    projects.forEach(p => {
-      const el = document.createElement('div')
-      el.className = 'project-item' + (currentProject === p.localPath ? ' active' : '')
-      el.innerHTML = `<span class="name">${esc(p.slug)}</span><span class="path">${esc(p.localPath)}</span>`
-      el.onclick = () => { selectProject(p); closeDrawer() }
-      list.appendChild(el)
-    })
+    renderProjectList(projects)
     if (!currentProject && projects.length > 0) selectProject(projects[0])
   } catch (e) {
     console.error('Failed to load projects:', e)
   }
+}
+
+function renderProjectList(projects) {
+  const list = document.getElementById('projectList')
+  list.innerHTML = ''
+  projects.forEach(p => {
+    const el = document.createElement('div')
+    el.className = 'project-item' + (currentProject === p.localPath ? ' active' : '')
+    el.innerHTML = `<span class="name">${esc(p.slug)}</span><span class="path">${esc(p.localPath)}</span>`
+    el.onclick = () => { selectProject(p); closeDrawer() }
+    list.appendChild(el)
+  })
 }
 
 function selectProject(p) {
@@ -132,24 +264,105 @@ function selectProject(p) {
   document.getElementById('title').textContent = p.slug
 }
 
-function openDrawer() { document.getElementById('drawer').classList.add('open') }
+// --- ドロワー ---
+function openDrawer(tab) {
+  document.getElementById('drawer').classList.add('open')
+  if (tab) switchDrawerTab(tab)
+  if (tab === 'sessions') loadSessions()
+}
 function closeDrawer() { document.getElementById('drawer').classList.remove('open') }
+
+function switchDrawerTab(tab) {
+  document.querySelectorAll('.drawer-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab))
+  document.getElementById('projectsTab').classList.toggle('active', tab === 'projects')
+  document.getElementById('sessionsTab').classList.toggle('active', tab === 'sessions')
+}
+
+// --- セッション履歴 ---
+async function loadSessions() {
+  try {
+    const res = await fetch('/api/chat/sessions', { credentials: 'include' })
+    const sessions = await res.json()
+    renderSessionList(sessions)
+  } catch (e) {
+    console.error('Failed to load sessions:', e)
+  }
+}
+
+function renderSessionList(list) {
+  const container = document.getElementById('sessionList')
+  if (list.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">No sessions yet</div>'
+    return
+  }
+  container.innerHTML = ''
+  list.forEach(s => {
+    const el = document.createElement('div')
+    el.className = 'session-item' + (sessionId === s.sessionId ? ' active' : '')
+    el.setAttribute('data-testid', 'session-item')
+    const timeStr = new Date(s.lastUsed).toLocaleString('ja-JP', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+    el.innerHTML = `
+      <span class="preview">${esc(s.messagePreview || s.sessionId)}</span>
+      <div class="session-meta">
+        <span>${esc(s.model || '')}</span>
+        <span>${timeStr}</span>
+      </div>
+      <button class="delete-session" onclick="event.stopPropagation();deleteSession('${esc(s.id || s.sessionId.slice(0,12))}')">delete</button>
+    `
+    el.onclick = () => { resumeSession(s); closeDrawer() }
+    container.appendChild(el)
+  })
+}
+
+function resumeSession(s) {
+  sessionId = s.sessionId
+  messagesEl.innerHTML = ''
+  addMessage('user', `(Resumed session: ${s.messagePreview || s.sessionId.slice(0,12)})`)
+}
+
+async function deleteSession(id) {
+  try {
+    await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE', credentials: 'include' })
+    loadSessions()
+  } catch (e) {
+    console.error('Failed to delete session:', e)
+  }
+}
+
+// --- 中断 ---
+async function abortCurrentStream() {
+  if (!currentStreamId) return
+  try {
+    await fetch('/api/chat/abort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ streamId: currentStreamId }),
+    })
+  } catch (e) {
+    console.error('Abort failed:', e)
+  }
+}
+
+function setStreamingUI(streaming) {
+  sending = streaming
+  sendBtn.disabled = streaming
+  sendBtn.style.display = streaming ? 'none' : 'flex'
+  abortBtn.style.display = streaming ? 'flex' : 'none'
+}
 
 // --- メッセージ送信 ---
 async function sendMessage() {
   const text = inputEl.value.trim()
   if (!text || sending) return
-  sending = true
-  sendBtn.disabled = true
+  setStreamingUI(true)
   inputEl.value = ''
   autoResize()
 
   addMessage('user', text)
   const assistantEl = addMessage('assistant', '')
-  const bubble = assistantEl.querySelector('.bubble')
-  bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>'
-
-  let fullText = ''
+  const content = assistantEl.querySelector('.content')
+  content.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>'
 
   try {
     const res = await fetch('/api/chat', {
@@ -173,40 +386,43 @@ async function sendMessage() {
       if (done) break
       buffer += decoder.decode(value, { stream: true })
 
-      // SSEフォーマット: "event: xxx\ndata: yyy\n\n" をパース
       const blocks = buffer.split('\n\n')
       buffer = blocks.pop() || ''
 
       for (const block of blocks) {
         if (!block.trim()) continue
         let eventName = 'message'
-        let data = ''
+        const dataLines = []
         for (const line of block.split('\n')) {
           if (line.startsWith('event:')) eventName = line.slice(6).trim()
-          else if (line.startsWith('data:')) data = line.slice(5).trimStart()
+          else if (line.startsWith('data:')) {
+            dataLines.push(line.charAt(5) === ' ' ? line.slice(6) : line.slice(5))
+          }
         }
-        if (data) handleSSE(eventName, data, bubble, assistantEl)
+        const data = dataLines.join('\n')
+        if (data) handleSSE(eventName, data, content, assistantEl)
       }
     }
   } catch (e) {
-    bubble.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`
+    content.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`
   }
 
-  sending = false
-  sendBtn.disabled = false
+  currentStreamId = null
+  setStreamingUI(false)
   scrollToBottom()
 }
 
-function handleSSE(event, data, bubble, msgEl) {
+function handleSSE(event, data, content, msgEl) {
   if (event === 'text') {
-    // タイピングアニメーション除去
-    const typing = bubble.querySelector('.typing')
+    const typing = content.querySelector('.typing')
     if (typing) typing.remove()
 
-    // テキスト蓄積 + マークダウンレンダリング
-    if (!bubble._fullText) bubble._fullText = ''
-    bubble._fullText += data
-    bubble.innerHTML = marked.parse(bubble._fullText)
+    if (!content._fullText) content._fullText = ''
+    content._fullText += data
+    // ツールパネルを保持しつつマークダウンを更新
+    const preserved = content.querySelectorAll('.tools-row, .tool-detail, .warning-badge')
+    const preservedHTML = Array.from(preserved).map(el => el.outerHTML).join('')
+    content.innerHTML = preservedHTML + marked.parse(content._fullText)
     scrollToBottom()
   }
 
@@ -214,9 +430,37 @@ function handleSSE(event, data, bubble, msgEl) {
     try {
       const info = JSON.parse(data)
       if (info.status === 'start') {
-        let toolsRow = bubble.querySelector('.tools-row')
-        if (!toolsRow) { toolsRow = document.createElement('div'); toolsRow.className = 'tools-row'; bubble.prepend(toolsRow) }
-        toolsRow.innerHTML += `<span class="tool-badge">${esc(info.name)}</span>`
+        let toolsRow = content.querySelector('.tools-row')
+        if (!toolsRow) { toolsRow = document.createElement('div'); toolsRow.className = 'tools-row'; content.prepend(toolsRow) }
+        const badge = document.createElement('span')
+        badge.className = 'tool-badge active'
+        badge.setAttribute('data-testid', 'tool-badge')
+        badge.textContent = info.name
+        toolsRow.appendChild(badge)
+      }
+      if (info.status === 'input' && info.detail) {
+        // ツール詳細パネル追加
+        const panel = createToolDetailPanel(info.detail)
+        // toolsRowの後に挿入
+        const toolsRow = content.querySelector('.tools-row')
+        if (toolsRow) toolsRow.after(panel)
+        else content.prepend(panel)
+        // バッジのアニメーション停止
+        const badges = content.querySelectorAll('.tool-badge.active')
+        badges.forEach(b => { if (b.textContent === info.name) b.classList.remove('active') })
+        scrollToBottom()
+      }
+      if (info.status === 'output' && info.detail) {
+        // 最後の同名パネルに出力を追記
+        const panels = content.querySelectorAll('.tool-detail')
+        for (let i = panels.length - 1; i >= 0; i--) {
+          const nameEl = panels[i].querySelector('.tool-name')
+          if (nameEl && nameEl.textContent === info.detail.name) {
+            appendToolOutput(panels[i], info.detail.output || '')
+            break
+          }
+        }
+        scrollToBottom()
       }
     } catch {}
   }
@@ -226,8 +470,9 @@ function handleSSE(event, data, bubble, msgEl) {
       const w = JSON.parse(data)
       const warn = document.createElement('div')
       warn.className = 'warning-badge'
+      warn.setAttribute('data-testid', 'warning-badge')
       warn.innerHTML = `&#9888; <strong>${esc(w.label)}</strong> ${esc(w.command)}`
-      bubble.appendChild(warn)
+      content.appendChild(warn)
       scrollToBottom()
     } catch {}
   }
@@ -236,6 +481,7 @@ function handleSSE(event, data, bubble, msgEl) {
     try {
       const s = JSON.parse(data)
       if (s.sessionId) sessionId = s.sessionId
+      if (s.streamId) currentStreamId = s.streamId
     } catch {}
   }
 
@@ -243,14 +489,13 @@ function handleSSE(event, data, bubble, msgEl) {
     try {
       const r = JSON.parse(data)
       if (r.sessionId) sessionId = r.sessionId
-      // resultのテキストがあり、まだ表示されていない場合
-      if (r.text && !bubble._fullText) {
-        bubble.innerHTML = marked.parse(r.text)
+      if (r.text && !content._fullText) {
+        content.innerHTML = marked.parse(r.text)
       }
-      // メタ情報
       if (r.cost || r.durationMs) {
         const meta = document.createElement('div')
         meta.className = 'meta'
+        meta.setAttribute('data-testid', 'result-meta')
         if (r.cost) meta.innerHTML += `<span>$${r.cost.toFixed(4)}</span>`
         if (r.durationMs) meta.innerHTML += `<span>${(r.durationMs / 1000).toFixed(1)}s</span>`
         if (r.turns) meta.innerHTML += `<span>${r.turns} turns</span>`
@@ -262,16 +507,90 @@ function handleSSE(event, data, bubble, msgEl) {
   if (event === 'error') {
     try {
       const e = JSON.parse(data)
-      bubble.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`
+      content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
     } catch {}
   }
+}
+
+// --- ツール詳細パネル ---
+function createToolDetailPanel(detail) {
+  const panel = document.createElement('div')
+  panel.className = 'tool-detail'
+  panel.setAttribute('data-testid', 'tool-detail')
+
+  const summary = getToolSummary(detail)
+
+  panel.innerHTML = `
+    <div class="tool-detail-header" onclick="toggleToolDetail(this)">
+      <span class="tool-icon">&#9654;</span>
+      <span class="tool-name">${esc(detail.name)}</span>
+      <span class="tool-file">${esc(summary)}</span>
+    </div>
+    <div class="tool-detail-body">${formatToolInput(detail)}</div>
+  `
+  return panel
+}
+
+function getToolSummary(detail) {
+  if (!detail.input) return ''
+  const inp = detail.input
+  if (detail.name === 'Read') return inp.file_path || ''
+  if (detail.name === 'Write') return inp.file_path || ''
+  if (detail.name === 'Edit') return inp.file_path || ''
+  if (detail.name === 'Bash') return (inp.command || '').slice(0, 80)
+  if (detail.name === 'Glob') return inp.pattern || ''
+  if (detail.name === 'Grep') return inp.pattern || ''
+  return JSON.stringify(inp).slice(0, 80)
+}
+
+function formatToolInput(detail) {
+  if (!detail.input) return ''
+  const inp = detail.input
+
+  if (detail.name === 'Edit' && inp.old_string !== undefined && inp.new_string !== undefined) {
+    return formatDiff(inp.old_string || '', inp.new_string || '', inp.file_path || '')
+  }
+  if (detail.name === 'Bash') {
+    return `<div style="color:var(--accent)">$ ${esc(inp.command || '')}</div>`
+  }
+  if (detail.name === 'Write') {
+    const content = inp.content || ''
+    return `<div class="diff-add" style="max-height:200px;overflow:auto">${esc(content)}</div>`
+  }
+  return `<div>${esc(JSON.stringify(inp, null, 2))}</div>`
+}
+
+function formatDiff(oldStr, newStr, filePath) {
+  const oldLines = oldStr.split('\n')
+  const newLines = newStr.split('\n')
+  let html = ''
+  if (filePath) html += `<div class="diff-hunk">--- ${esc(filePath)}</div>`
+  oldLines.forEach(l => { html += `<div class="diff-line diff-del">- ${esc(l)}</div>` })
+  newLines.forEach(l => { html += `<div class="diff-line diff-add">+ ${esc(l)}</div>` })
+  return html
+}
+
+function appendToolOutput(panel, output) {
+  const body = panel.querySelector('.tool-detail-body')
+  if (!body) return
+  if (output) {
+    body.innerHTML += `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;color:var(--muted)">${esc(output)}</div>`
+  }
+}
+
+function toggleToolDetail(header) {
+  const icon = header.querySelector('.tool-icon')
+  const body = header.nextElementSibling
+  icon.classList.toggle('open')
+  body.classList.toggle('open')
 }
 
 // --- UI helpers ---
 function addMessage(role, text) {
   const el = document.createElement('div')
   el.className = `msg ${role}`
-  el.innerHTML = `<div class="bubble">${role === 'user' ? esc(text) : text}</div>`
+  el.setAttribute('data-testid', `msg-${role}`)
+  el.innerHTML = `<div class="content">${role === 'user' ? esc(text) : text}</div>`
   messagesEl.appendChild(el)
   scrollToBottom()
   return el
@@ -282,19 +601,18 @@ function scrollToBottom() {
 }
 
 function esc(s) {
+  if (typeof s !== 'string') s = String(s || '')
   const d = document.createElement('div')
   d.textContent = s
   return d.innerHTML
 }
 
-// テキストエリア自動リサイズ
 function autoResize() {
   inputEl.style.height = 'auto'
   inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px'
 }
 inputEl.addEventListener('input', autoResize)
 
-// Enter送信 (Shift+Enterで改行)
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
@@ -302,7 +620,6 @@ inputEl.addEventListener('keydown', (e) => {
   }
 })
 
-// 起動
 init()
 </script>
 </body>
