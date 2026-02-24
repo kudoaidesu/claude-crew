@@ -140,9 +140,12 @@ pre:hover .code-copy-btn{opacity:1}
 .git-statusbar-pill{display:flex;align-items:center;gap:4px;padding:5px 10px;font-size:12px;font-family:var(--font-mono);color:var(--muted);white-space:nowrap;transition:background .1s;border-left:1px solid var(--border)}
 .git-statusbar-pill:hover{background:var(--surface-hover);color:var(--text)}
 .git-statusbar-pill.warn{color:var(--warning)}
+.git-statusbar-pill.danger{color:var(--danger)}
+.git-statusbar-pill.compact-running{animation:pulse-compact 1.5s ease-in-out infinite}
+@keyframes pulse-compact{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* ── 入力エリア ── */
-.input-area{border-top:1px solid var(--border);background:var(--surface);padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));flex-shrink:0;margin-top:auto}
+.input-area{border-top:1px solid var(--border);background:var(--surface);padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));flex-shrink:0}
 .input-box{border:1px solid var(--border);border-radius:10px;background:var(--bg);overflow:hidden;transition:border-color .15s}
 .input-box:focus-within{border-color:var(--accent-border)}
 .input-box textarea{width:100%;background:transparent;color:var(--text);border:none;padding:10px 14px;font-size:14px;font-family:var(--font-sans);resize:none;min-height:40px;max-height:150px;line-height:1.4}
@@ -304,9 +307,10 @@ pre:hover .code-copy-btn{opacity:1}
 <div id="sessionsContainer"></div>
 
 <div class="input-area" style="position:relative">
-  <div id="gitBar" class="git-statusbar" onclick="openDrawer('git')" title="Git status">
-    <div class="git-statusbar-left"><span id="gitBarBranch" style="opacity:.5">—</span></div>
+  <div id="gitBar" class="git-statusbar">
+    <div class="git-statusbar-left" onclick="openDrawer('git')" title="Git status"><span id="gitBarBranch" style="opacity:.5">—</span></div>
     <div class="git-statusbar-right" id="gitBarRight"></div>
+    <div class="git-statusbar-pill" id="tokenPill" onclick="event.stopPropagation();triggerCompact()" title="Context usage — tap to compact" style="display:none"></div>
   </div>
   <div class="cmd-menu" id="cmdMenu"></div>
   <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
@@ -339,6 +343,7 @@ pre:hover .code-copy-btn{opacity:1}
       <button class="drawer-tab" data-tab="files" onclick="switchDrawerTab('files')">Files</button>
       <button class="drawer-tab" data-tab="git" onclick="switchDrawerTab('git')">Git</button>
       <button class="drawer-tab" data-tab="services" onclick="switchDrawerTab('services')">Services</button>
+      <button class="drawer-tab" data-tab="tools" onclick="switchDrawerTab('tools')">Tools</button>
       <button class="drawer-tab" data-tab="projects" onclick="switchDrawerTab('projects')">Projects</button>
     </div>
     <div id="sessionsTab" class="drawer-tab-content active">
@@ -377,6 +382,9 @@ pre:hover .code-copy-btn{opacity:1}
     <div id="servicesTab" class="drawer-tab-content">
       <div id="servicesList"></div>
       <div style="color:var(--muted);font-size:11px;padding:8px 12px;line-height:1.5;opacity:.7">Tip: スマホからアクセスするには <code style="font-size:11px;background:var(--surface1);padding:1px 4px;border-radius:3px">0.0.0.0</code> でバインドが必要。例: <code style="font-size:11px;background:var(--surface1);padding:1px 4px;border-radius:3px">next dev --hostname 0.0.0.0</code></div>
+    </div>
+    <div id="toolsTab" class="drawer-tab-content">
+      <div id="toolsList"></div>
     </div>
   </div>
 </div>
@@ -437,7 +445,7 @@ const ICONS = {
   'external-link':'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   'chevron-down':'<path d="m6 9 6 6 6-6"/>',
   'eye':            '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
-  'source-control': '<circle cx="12" cy="4" r="2"/><circle cx="4.5" cy="20" r="2"/><circle cx="19.5" cy="20" r="2"/><line x1="12" y1="6" x2="4.5" y2="18"/><line x1="12" y1="6" x2="19.5" y2="18"/>',
+  'git-commit':     '<circle cx="12" cy="12" r="3"/><line x1="3" x2="9" y1="12" y2="12"/><line x1="15" x2="21" y1="12" y2="12"/>',
 }
 
 function ic(name, size) {
@@ -694,10 +702,124 @@ function showCompactDone(trigger, preTokens) {
   setTimeout(() => { banner.classList.remove('active') }, 4000)
 }
 
+// --- トークン使用量表示 + 手動コンパクト ---
+let lastInputTokens = 0
+let lastContextWindow = 0
+let compactPollTimer = null
+
+function updateTokenUsage(inputTokens, contextWindow) {
+  // contextWindow=0 は中間更新（前回値を保持）
+  if (contextWindow > 0) lastContextWindow = contextWindow
+  if (inputTokens > 0) lastInputTokens = inputTokens
+
+  const pill = document.getElementById('tokenPill')
+  if (!lastContextWindow || !lastInputTokens) {
+    pill.style.display = 'none'
+    return
+  }
+
+  pill.style.display = 'flex'
+  const ratio = lastInputTokens / lastContextWindow
+  const inputK = Math.round(lastInputTokens / 1000)
+  const ctxK = Math.round(lastContextWindow / 1000)
+  pill.innerHTML = `${ic('cpu', 12)} ${inputK}k/${ctxK}k`
+
+  pill.classList.remove('warn', 'danger')
+  if (ratio >= 0.8) pill.classList.add('danger')
+  else if (ratio >= 0.6) pill.classList.add('warn')
+}
+
+function triggerCompact() {
+  const tab = tabs.get(activeTabId)
+  if (!tab?.sessionId) {
+    showToast(`<p>No active session to compact</p>`, 2000)
+    return
+  }
+  if (tab.sending) {
+    showToast(`<p>Wait for current response to finish</p>`, 2000)
+    return
+  }
+
+  const pill = document.getElementById('tokenPill')
+  pill.classList.add('compact-running')
+  pill.innerHTML = `${ic('zap', 12)} Compacting...`
+
+  const cwd = currentProject || ''
+  const model = document.getElementById('model').value || 'sonnet'
+
+  fetch('/api/chat/compact', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId: tab.sessionId, project: cwd, model }),
+  }).then(r => r.json()).then(res => {
+    if (res.started) {
+      pollCompactStatus(tab.sessionId)
+    } else {
+      pill.classList.remove('compact-running')
+      showToast(`<p>Compact: ${res.reason || 'could not start'}</p>`, 3000)
+    }
+  }).catch(() => {
+    pill.classList.remove('compact-running')
+  })
+}
+
+function pollCompactStatus(sessionId) {
+  if (compactPollTimer) clearInterval(compactPollTimer)
+  compactPollTimer = setInterval(() => {
+    fetch(`/api/chat/compact-status/${encodeURIComponent(sessionId)}`)
+      .then(r => r.json())
+      .then(job => {
+        if (job.status === 'done') {
+          clearInterval(compactPollTimer)
+          compactPollTimer = null
+          const pill = document.getElementById('tokenPill')
+          pill.classList.remove('compact-running')
+          showCompactDone('manual', job.preTokens)
+          // トークン情報をリセット（コンパクト後は不明）
+          lastInputTokens = 0
+          pill.innerHTML = `${ic('cpu', 12)} compacted`
+          setTimeout(() => { if (!lastInputTokens) pill.style.display = 'none' }, 5000)
+        } else if (job.status === 'error') {
+          clearInterval(compactPollTimer)
+          compactPollTimer = null
+          const pill = document.getElementById('tokenPill')
+          pill.classList.remove('compact-running')
+          showToast(`<p>Compact error: ${job.error || 'unknown'}</p>`, 4000)
+          updateTokenUsage(lastInputTokens, lastContextWindow)
+        }
+      })
+      .catch(() => {})
+  }, 2000)
+}
+
+function checkCompactJobOnTabSwitch(tab) {
+  // トークン表示リセット（タブごとに異なる）
+  lastInputTokens = 0
+  lastContextWindow = 0
+  const pill = document.getElementById('tokenPill')
+  pill.style.display = 'none'
+  pill.classList.remove('compact-running', 'warn', 'danger')
+  if (compactPollTimer) { clearInterval(compactPollTimer); compactPollTimer = null }
+
+  if (!tab?.sessionId) return
+  // サーバー側にコンパクトジョブが残っているか確認
+  fetch(`/api/chat/compact-status/${encodeURIComponent(tab.sessionId)}`)
+    .then(r => r.json())
+    .then(job => {
+      if (job.status === 'running') {
+        pill.style.display = 'flex'
+        pill.classList.add('compact-running')
+        pill.innerHTML = `${ic('zap', 12)} Compacting...`
+        pollCompactStatus(tab.sessionId)
+      }
+    })
+    .catch(() => {})
+}
+
 // --- コマンドメニュー ---
 const CMD_ITEMS = [
   { name: '/plan', desc: 'Toggle plan mode', icon: 'map-pin', action: () => togglePlanMode() },
-  { name: '/compact', desc: 'Compact context', icon: 'zap', action: () => { inputEl.value = '/compact'; sendMessage() } },
+  { name: '/compact', desc: 'Compact context', icon: 'zap', action: () => triggerCompact() },
   { name: '/cost', desc: 'Show usage cost', icon: 'dollar-sign', action: () => showCostToast() },
   { name: '/copy', desc: 'Copy last response', icon: 'copy', action: () => copyLastResponse() },
   { name: '/rename', desc: 'Rename session', icon: 'edit-3', action: () => renameCurrentTab() },
@@ -937,8 +1059,9 @@ function switchTab(tabId) {
   renderTabs()
   const tab = tabs.get(tabId)
   updateStreamingUI(tab.sending)
-  inputEl.focus()
   saveTabs()
+  // タブ切替時にコンパクトジョブ状態を確認
+  checkCompactJobOnTabSwitch(tab)
 }
 
 function closeTab(tabId) {
@@ -1156,7 +1279,7 @@ function closeDrawer() { document.getElementById('drawer').classList.remove('ope
 
 function switchDrawerTab(tab) {
   document.querySelectorAll('.drawer-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab))
-  ;['sessions', 'projects', 'files', 'git', 'services'].forEach(id => {
+  ;['sessions', 'projects', 'files', 'git', 'services', 'tools'].forEach(id => {
     const el = document.getElementById(id + 'Tab')
     if (el) el.classList.toggle('active', tab === id)
   })
@@ -1165,6 +1288,7 @@ function switchDrawerTab(tab) {
   if (tab === 'files') loadFileTree()
   if (tab === 'git') loadGitStatus()
   if (tab === 'services') loadServices()
+  if (tab === 'tools') loadTools()
 }
 
 // --- セッション履歴 ---
@@ -1530,6 +1654,13 @@ function handleSSE(tabId, event, data, content, msgEl) {
       showCompactDone(c.trigger, c.preTokens)
     } catch {}
   }
+
+  if (event === 'tokenUsage') {
+    try {
+      const t = JSON.parse(data)
+      updateTokenUsage(t.inputTokens, t.contextWindow)
+    } catch {}
+  }
 }
 
 // --- ツール詳細パネル ---
@@ -1670,14 +1801,75 @@ inputEl.addEventListener('input', () => {
   }
 })
 
-// モバイル: 入力エリア外タップでキーボードを閉じる
+// モバイル: 入力エリア外タップでキーボードを閉じる（入力エリア全体は除外）
 if (isTouchDevice) {
   document.addEventListener('touchstart', (e) => {
     if (document.activeElement !== inputEl) return
-    const footer = document.querySelector('.input-footer')
-    if (footer && footer.contains(e.target)) return
+    const inputArea = document.querySelector('.input-area')
+    if (inputArea && inputArea.contains(e.target)) return
     inputEl.blur()
   })
+}
+
+// =====================================================
+// Tools タブ: MCP + SKILLS 一覧
+// =====================================================
+async function loadTools() {
+  const container = document.getElementById('toolsList')
+  container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px;text-align:center">Loading...</div>'
+  try {
+    const [mcpRes, skillsRes] = await Promise.all([
+      fetch('/api/mcp' + (currentProject ? '?project=' + encodeURIComponent(currentProject) : '')),
+      fetch('/api/skills' + (currentProject ? '?project=' + encodeURIComponent(currentProject) : '')),
+    ])
+    const mcp = await mcpRes.json()
+    const skills = await skillsRes.json()
+    let html = ''
+
+    // MCP セクション
+    html += `<div style="font-size:11px;color:var(--muted);padding:4px 0 6px;font-weight:600;letter-spacing:.05em">MCP SERVERS</div>`
+    if (mcp.items.length === 0) {
+      html += `<div style="font-size:12px;color:var(--muted);padding:4px 0 10px">None</div>`
+    } else {
+      html += `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">`
+      mcp.items.forEach(m => {
+        const dotColor = m.disabled ? 'var(--muted)' : 'var(--success)'
+        const nameColor = m.disabled ? 'var(--muted)' : 'var(--text)'
+        const badge = m.source ? `<span style="font-size:10px;color:var(--muted);background:var(--surface);padding:1px 5px;border-radius:3px">${esc(m.source)}</span>` : ''
+        const envInfo = m.envKeys?.length ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">env: ${m.envKeys.map(k => esc(k)).join(', ')}</div>` : ''
+        html += `<div style="padding:8px 12px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+            <span style="font-size:13px;font-family:var(--font-mono);color:${nameColor};font-weight:600">${esc(m.name)}</span>
+            ${badge}
+            ${m.disabled ? '<span style="font-size:10px;color:var(--warning);background:var(--warning-bg);padding:1px 5px;border-radius:3px">disabled</span>' : ''}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.command)}</div>
+          ${envInfo}
+        </div>`
+      })
+      html += `</div>`
+    }
+
+    // SKILLS セクション
+    html += `<div style="font-size:11px;color:var(--muted);padding:4px 0 6px;font-weight:600;letter-spacing:.05em">SKILLS</div>`
+    if (skills.items.length === 0) {
+      html += `<div style="font-size:12px;color:var(--muted);padding:4px 0">None</div>`
+    } else {
+      html += `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">`
+      skills.items.forEach(s => {
+        html += `<div style="padding:7px 12px;border-top:1px solid var(--border)">
+          <div style="font-size:13px;font-family:var(--font-mono);color:var(--text)">${esc(s.name)}</div>
+          ${s.title !== s.name ? `<div style="font-size:11px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.title)}</div>` : ''}
+        </div>`
+      })
+      html += `</div>`
+    }
+
+    container.innerHTML = html
+  } catch (e) {
+    container.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:16px">Error: ${esc(String(e))}</div>`
+  }
 }
 
 // =====================================================
@@ -1991,11 +2183,11 @@ function updateGitBar(data) {
   let right = ''
   const changed = data.files ? data.files.length : 0
   if (changed > 0) {
-    right += `<div class="git-statusbar-pill" style="color:var(--accent)">${ic('source-control', 12)} ${changed}</div>`
+    right += `<div class="git-statusbar-pill" style="color:var(--accent)">${ic('git-commit', 12)} ${changed}</div>`
   }
-  if (data.unpushed > 0) {
-    right += `<div class="git-statusbar-pill warn">${ic('arrow-up', 12)} ${data.unpushed}</div>`
-  }
+  const up = data.unpushed ?? 0
+  const down = data.unpulled ?? 0
+  right += `<div class="git-statusbar-pill${up > 0 ? ' warn' : ''}">↓${down} ↑${up}</div>`
   rightEl.innerHTML = right
 }
 

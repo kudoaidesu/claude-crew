@@ -278,11 +278,14 @@ app.get('/api/git/status', (c) => {
       file: line.slice(2).trimStart(),
     })) : []
 
-    // 未プッシュコミット数
+    // 未プッシュ / 未プル コミット数
     let unpushed = 0
+    let unpulled = 0
     try {
-      const count = execSync(`git -C "${project}" rev-list --count @{u}..HEAD`, { encoding: 'utf-8', timeout: 5000 }).trim()
-      unpushed = parseInt(count, 10) || 0
+      const lr = execSync(`git -C "${project}" rev-list --left-right --count HEAD...@{u}`, { encoding: 'utf-8', timeout: 5000 }).trim()
+      const [a, b] = lr.split('\t').map(n => parseInt(n, 10) || 0)
+      unpushed = a
+      unpulled = b
     } catch { /* no upstream */ }
 
     // ブランチ一覧
@@ -299,7 +302,7 @@ app.get('/api/git/status', (c) => {
       repo = extractRepo(url)
     } catch { /* no remote */ }
 
-    return c.json({ branch, branches, files, unpushed, repo })
+    return c.json({ branch, branches, files, unpushed, unpulled, repo })
   } catch (e) {
     return c.json({ error: String(e) }, 500)
   }
@@ -344,6 +347,64 @@ app.get('/api/processes', (c) => {
   } catch (e) {
     return c.json({ items: [] })
   }
+})
+
+// --- MCP サーバー一覧 API ---
+app.get('/api/mcp', (c) => {
+  const project = c.req.query('project') || ''
+  const items: Array<{ name: string; type: string; command: string; source: string; disabled?: boolean; envKeys?: string[] }> = []
+  const sources: Array<{ path: string; label: string }> = [
+    { path: join(project, '.mcp.json'), label: 'project' },
+    { path: join(homedir(), '.claude', 'settings.json'), label: 'user' },
+    { path: join(homedir(), '.claude', 'settings.local.json'), label: 'user-local' },
+  ]
+  for (const src of sources) {
+    try {
+      const raw = JSON.parse(readFileSync(src.path, 'utf-8'))
+      const servers = raw.mcpServers || {}
+      for (const [name, cfg] of Object.entries(servers as Record<string, { type?: string; command?: string; args?: string[]; disabled?: boolean; env?: Record<string, string> }>)) {
+        if (!items.find(i => i.name === name)) {
+          items.push({
+            name,
+            type: cfg.type || 'stdio',
+            command: [cfg.command, ...(cfg.args || [])].filter(Boolean).join(' '),
+            source: src.label,
+            disabled: cfg.disabled || false,
+            envKeys: cfg.env ? Object.keys(cfg.env) : [],
+          })
+        }
+      }
+    } catch { /* file not found or parse error */ }
+  }
+  return c.json({ items })
+})
+
+// --- SKILLS 一覧 API ---
+app.get('/api/skills', (c) => {
+  const project = c.req.query('project') || ''
+  const items: Array<{ name: string; title: string }> = []
+  const dirs = [
+    join(project, '.claude', 'skills'),
+    join(homedir(), '.claude', 'skills'),
+  ]
+  for (const dir of dirs) {
+    try {
+      const files = readdirSync(dir)
+      for (const f of files) {
+        const name = f.replace(/\.(md|txt)$/, '')
+        if (!items.find(i => i.name === name)) {
+          // 1行目をタイトルとして取得
+          let title = name
+          try {
+            const firstLine = readFileSync(join(dir, f), 'utf-8').split('\n').find(l => l.trim())
+            title = firstLine?.replace(/^#+\s*/, '').trim() || name
+          } catch { /* skip */ }
+          items.push({ name, title })
+        }
+      }
+    } catch { /* dir not found */ }
+  }
+  return c.json({ items: items.sort((a, b) => a.name.localeCompare(b.name)) })
 })
 
 // --- SPA フォールバック ---

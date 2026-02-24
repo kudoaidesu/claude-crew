@@ -334,6 +334,12 @@ chatRoutes.post('/', async (c) => {
               data: JSON.stringify({ trigger: event.trigger, preTokens: event.preTokens }),
             })
             break
+          case 'tokenUsage':
+            await stream.writeSSE({
+              event: 'tokenUsage',
+              data: JSON.stringify({ inputTokens: event.inputTokens, contextWindow: event.contextWindow }),
+            })
+            break
         }
       }
 
@@ -415,5 +421,79 @@ chatRoutes.get('/history/:sessionId', async (c) => {
     log.warn(`Failed to parse session history: ${e}`)
     return c.json({ messages: [] })
   }
+})
+
+// ── コンパクトジョブ管理（バックグラウンド実行） ────────────
+interface CompactJob {
+  status: 'running' | 'done' | 'error'
+  startedAt: number
+  preTokens?: number
+  error?: string
+}
+
+const compactJobs = new Map<string, CompactJob>()
+
+async function runCompact(sessionId: string, cwd: string, model: string): Promise<{ preTokens?: number }> {
+  let preTokens: number | undefined
+  const stream = createChatStream({
+    message: '/compact',
+    cwd,
+    model,
+    sessionId,
+    permissionMode: 'default',
+  })
+  for await (const event of stream) {
+    if (event.type === 'compact' && event.preTokens) {
+      preTokens = event.preTokens
+    }
+  }
+  return { preTokens }
+}
+
+// POST /api/chat/compact — 手動コンパクト実行（バックグラウンド）
+chatRoutes.post('/compact', async (c) => {
+  const { sessionId, project, model } = await c.req.json<{
+    sessionId?: string
+    project?: string
+    model?: string
+  }>()
+
+  if (!sessionId) {
+    return c.json({ error: 'sessionId is required' }, 400)
+  }
+
+  // 既に実行中ならスキップ
+  const existing = compactJobs.get(sessionId)
+  if (existing?.status === 'running') {
+    return c.json({ started: false, reason: 'already running' })
+  }
+
+  const cwd = project || process.cwd()
+  const job: CompactJob = { status: 'running', startedAt: Date.now() }
+  compactJobs.set(sessionId, job)
+  log.info(`Manual compact started for session ${sessionId.slice(0, 12)}`)
+
+  // バックグラウンドで実行（レスポンスは即返す）
+  runCompact(sessionId, cwd, model || 'sonnet').then(result => {
+    job.status = 'done'
+    job.preTokens = result.preTokens
+    log.info(`Manual compact done for session ${sessionId.slice(0, 12)}, preTokens=${result.preTokens}`)
+  }).catch(err => {
+    job.status = 'error'
+    job.error = err instanceof Error ? err.message : String(err)
+    log.error(`Manual compact failed for session ${sessionId.slice(0, 12)}: ${job.error}`)
+  })
+
+  return c.json({ started: true })
+})
+
+// GET /api/chat/compact-status/:sessionId — コンパクトジョブ状態確認
+chatRoutes.get('/compact-status/:sessionId', (c) => {
+  const sessionId = c.req.param('sessionId')
+  const job = compactJobs.get(sessionId)
+  if (!job) {
+    return c.json({ status: 'none' })
+  }
+  return c.json(job)
 })
 

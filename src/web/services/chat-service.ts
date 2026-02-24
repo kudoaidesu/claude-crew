@@ -36,6 +36,7 @@ export type ChatEvent =
   | { type: 'error'; message: string }
   | { type: 'status'; status: string; permissionMode?: string }
   | { type: 'compact'; trigger: string; preTokens?: number }
+  | { type: 'tokenUsage'; inputTokens: number; contextWindow: number }
 
 /** Agent SDK から返される生メッセージ */
 export interface SdkMessage {
@@ -60,10 +61,13 @@ export interface SdkMessage {
   is_error?: boolean
   num_turns?: number
   duration_ms?: number
+  usage?: { input_tokens?: number; output_tokens?: number }
+  modelUsage?: Record<string, { inputTokens: number; contextWindow: number }>
   event?: {
     type: string
     delta?: { type: string; text?: string }
     content_block?: { type: string; name?: string }
+    message?: { usage?: { input_tokens?: number } }
   }
 }
 
@@ -184,6 +188,15 @@ export function parseSdkMessage(msg: SdkMessage, currentSessionId: string): Chat
     }
   }
 
+  // stream_event の message_start から中間トークン使用量を取得
+  if (msg.type === 'stream_event' && msg.event?.type === 'message_start' && msg.event.message?.usage) {
+    const u = msg.event.message.usage
+    if (u.input_tokens) {
+      // contextWindow は result まで不明なので 0 で仮送信（UI側で前回値を保持）
+      events.push({ type: 'tokenUsage', inputTokens: u.input_tokens, contextWindow: 0 })
+    }
+  }
+
   // 最終結果
   if (msg.type === 'result') {
     const sessionId = msg.session_id || currentSessionId
@@ -196,6 +209,17 @@ export function parseSdkMessage(msg: SdkMessage, currentSessionId: string): Chat
       durationMs: msg.duration_ms,
       isError: msg.is_error,
     })
+    // result メッセージから modelUsage を抽出してトークン使用量を確定
+    if (msg.modelUsage) {
+      const models = Object.values(msg.modelUsage)
+      if (models.length > 0) {
+        const totalInput = models.reduce((sum, m) => sum + (m.inputTokens || 0), 0)
+        const maxContextWindow = Math.max(...models.map(m => m.contextWindow || 0))
+        if (maxContextWindow > 0) {
+          events.push({ type: 'tokenUsage', inputTokens: totalInput, contextWindow: maxContextWindow })
+        }
+      }
+    }
   }
 
   return events
