@@ -191,7 +191,7 @@ pre:hover .code-copy-btn{opacity:1}
   .header-logo span{display:none}
   .header-btn{padding:4px 6px;font-size:11px}
   .header-btn .btn-label{display:none}
-  .model-select{max-width:100px;font-size:11px;padding:3px 4px}
+  .model-select{max-width:120px;font-size:11px;padding:3px 4px}
   .tab{padding:4px 8px;font-size:11px;max-width:120px}
   .input-area{padding:8px 10px;padding-bottom:calc(8px + env(safe-area-inset-bottom))}
   .input-footer{gap:3px;padding:3px 6px 4px}
@@ -242,15 +242,6 @@ pre:hover .code-copy-btn{opacity:1}
 <div class="header">
   <div class="header-logo" id="headerLogo"></div>
   <div class="header-spacer"></div>
-  <select id="model" class="model-select">
-    <option value="default">default (auto)</option>
-    <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
-    <option value="claude-opus-4-6">claude-opus-4-6</option>
-    <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-    <option value="sonnet">sonnet (alias)</option>
-    <option value="opus">opus (alias)</option>
-    <option value="haiku">haiku (alias)</option>
-  </select>
   <button class="header-btn" id="planToggle" onclick="togglePlanMode()" title="Plan Mode"></button>
   <button class="header-btn" id="historyBtn" onclick="openDrawer('sessions')" title="History"></button>
   <button class="header-btn" id="projectsBtn" onclick="openDrawer('projects')" title="Projects"></button>
@@ -270,8 +261,17 @@ pre:hover .code-copy-btn{opacity:1}
     <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="send"></textarea>
     <div class="input-footer">
       <button id="cmdBtn" onclick="toggleCmdMenu()" title="Commands (/)"></button>
-      <button id="filesBtn" onclick="insertFileMention()" title="Mention file"></button>
-      <button id="browserBtn" onclick="insertUrl()" title="Fetch URL"></button>
+      <button id="filesBtn" onclick="triggerFileUpload()" title="Upload file"></button>
+      <input type="file" id="fileInput" multiple accept="text/*,.ts,.tsx,.js,.jsx,.json,.md,.yaml,.yml,.toml,.css,.html,.py,.sh,.sql,.xml,.csv,.log,.env,.gitignore" style="display:none">
+      <select id="model" class="model-select">
+        <option value="default">default (auto)</option>
+        <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
+        <option value="claude-opus-4-6">claude-opus-4-6</option>
+        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+        <option value="sonnet">sonnet (alias)</option>
+        <option value="opus">opus (alias)</option>
+        <option value="haiku">haiku (alias)</option>
+      </select>
       <span style="flex:1"></span>
       <button class="abort-btn" id="abort" onclick="abortCurrentTab()" title="Stop"></button>
       <button class="send-btn" id="send" onclick="sendMessage()" title="Send (Enter)"></button>
@@ -323,6 +323,7 @@ const ICONS = {
   'zap':         '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
   'link':        '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   'eraser':      '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  'upload':      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
 }
 
 function ic(name, size) {
@@ -344,8 +345,7 @@ document.getElementById('historyBtn').innerHTML = ic('clock', 14) + '<span class
 document.getElementById('projectsBtn').innerHTML = ic('folder', 14)
 document.getElementById('tabAddBtn').innerHTML = ic('plus', 14)
 document.getElementById('cmdBtn').innerHTML = ic('slash', 14)
-document.getElementById('filesBtn').innerHTML = ic('file-text', 14)
-document.getElementById('browserBtn').innerHTML = ic('globe', 14)
+document.getElementById('filesBtn').innerHTML = ic('upload', 14)
 document.getElementById('abort').innerHTML = ic('square', 14)
 document.getElementById('send').innerHTML = ic('send', 14)
 
@@ -461,23 +461,27 @@ function clearCurrentTab() {
   renderTabs()
 }
 
-// --- Files & Folders ---
-function insertFileMention() {
-  const path = prompt('Enter file path to mention:')
-  if (path) {
-    inputEl.value += (inputEl.value ? ' ' : '') + path
-    inputEl.focus()
-  }
+// --- File Upload ---
+function triggerFileUpload() {
+  document.getElementById('fileInput').click()
 }
-
-// --- Browser URL ---
-function insertUrl() {
-  const url = prompt('Enter URL to fetch:')
-  if (url) {
-    inputEl.value += (inputEl.value ? ' ' : '') + url
-    inputEl.focus()
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const files = e.target.files
+  if (!files || files.length === 0) return
+  const parts = []
+  for (const file of files) {
+    try {
+      const text = await file.text()
+      parts.push(`--- ${file.name} ---\n${text}`)
+    } catch { parts.push(`--- ${file.name} --- (読み込みエラー)`) }
   }
-}
+  const sep = inputEl.value ? '\n' : ''
+  inputEl.value += sep + parts.join('\n\n')
+  inputEl.style.height = 'auto'
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px'
+  inputEl.focus()
+  e.target.value = ''
+})
 
 // --- タブ管理 ---
 function createNewTab(label) {
