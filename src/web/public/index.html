@@ -37,11 +37,6 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .header-btn svg.ic{font-size:14px}
 .model-select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;font-family:var(--font-mono);cursor:pointer;min-width:0;flex-shrink:1}
 .model-select:focus{outline:none;border-color:var(--accent)}
-.upload-menu{display:none;position:absolute;bottom:calc(100% - 8px);left:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.4)}
-.upload-menu.active{display:flex;flex-direction:column;gap:2px}
-.upload-menu button{display:flex;align-items:center;gap:8px;padding:8px 14px;background:none;border:none;color:var(--text);font-size:13px;font-family:var(--font-mono);cursor:pointer;border-radius:6px;white-space:nowrap}
-.upload-menu button:hover{background:var(--surface-hover)}
-.upload-menu-icon{display:inline-flex;align-items:center}
 
 /* ── セッションタブバー ── */
 .tab-bar{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -261,16 +256,12 @@ pre:hover .code-copy-btn{opacity:1}
 
 <div class="input-area" style="position:relative">
   <div class="cmd-menu" id="cmdMenu"></div>
-  <div class="upload-menu" id="uploadMenu">
-    <button onclick="doUpload('file')"><span class="upload-menu-icon" id="umFileIcon"></span> File</button>
-    <button onclick="doUpload('image')"><span class="upload-menu-icon" id="umImageIcon"></span> Image</button>
-  </div>
-  <input type="file" id="fileInput" multiple style="display:none">
+  <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
   <div class="input-box">
     <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="send"></textarea>
     <div class="input-footer">
       <button id="cmdBtn" onclick="toggleCmdMenu()" title="Commands (/)"></button>
-      <button id="filesBtn" onclick="showUploadMenu()" title="Upload file"></button>
+      <button id="filesBtn" onclick="document.getElementById('fileInput').click()" title="Upload file"></button>
       <select id="model" class="model-select">
         <option value="default">default (auto)</option>
         <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
@@ -355,8 +346,6 @@ document.getElementById('projectsBtn').innerHTML = ic('folder', 14)
 document.getElementById('tabAddBtn').innerHTML = ic('plus', 14)
 document.getElementById('cmdBtn').innerHTML = ic('slash', 14)
 document.getElementById('filesBtn').innerHTML = ic('upload', 14)
-document.getElementById('umFileIcon').innerHTML = ic('file-text', 14)
-document.getElementById('umImageIcon').innerHTML = ic('image', 14)
 document.getElementById('abort').innerHTML = ic('square', 14)
 document.getElementById('send').innerHTML = ic('send', 14)
 
@@ -473,33 +462,12 @@ function clearCurrentTab() {
 }
 
 // --- File Upload ---
-const uploadMenu = document.getElementById('uploadMenu')
-const fileInput = document.getElementById('fileInput')
-
-function showUploadMenu() {
-  uploadMenu.classList.toggle('active')
-}
-function doUpload(mode) {
-  uploadMenu.classList.remove('active')
-  if (mode === 'image') {
-    fileInput.accept = 'image/*'
-  } else {
-    fileInput.accept = 'text/*,.ts,.tsx,.js,.jsx,.json,.md,.yaml,.yml,.toml,.css,.html,.py,.sh,.sql,.xml,.csv,.log,.env,.gitignore'
-  }
-  fileInput.click()
-}
-document.addEventListener('click', (e) => {
-  if (!uploadMenu.contains(e.target) && e.target !== document.getElementById('filesBtn') && !document.getElementById('filesBtn').contains(e.target)) {
-    uploadMenu.classList.remove('active')
-  }
-})
-fileInput.addEventListener('change', async (e) => {
+document.getElementById('fileInput').addEventListener('change', async (e) => {
   const files = e.target.files
   if (!files || files.length === 0) return
-  const isImage = fileInput.accept.startsWith('image')
-  if (isImage) {
-    const parts = []
-    for (const file of files) {
+  const parts = []
+  for (const file of files) {
+    if (file.type.startsWith('image/')) {
       try {
         const reader = new FileReader()
         const dataUrl = await new Promise((resolve, reject) => {
@@ -509,20 +477,15 @@ fileInput.addEventListener('change', async (e) => {
         })
         parts.push(`[image: ${file.name}]\n${dataUrl}`)
       } catch { parts.push(`[image: ${file.name}] (読み込みエラー)`) }
-    }
-    const sep = inputEl.value ? '\n' : ''
-    inputEl.value += sep + parts.join('\n\n')
-  } else {
-    const parts = []
-    for (const file of files) {
+    } else {
       try {
         const text = await file.text()
         parts.push(`--- ${file.name} ---\n${text}`)
       } catch { parts.push(`--- ${file.name} --- (読み込みエラー)`) }
     }
-    const sep = inputEl.value ? '\n' : ''
-    inputEl.value += sep + parts.join('\n\n')
   }
+  const sep = inputEl.value ? '\n' : ''
+  inputEl.value += sep + parts.join('\n\n')
   inputEl.style.height = 'auto'
   inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px'
   inputEl.focus()
