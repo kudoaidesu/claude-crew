@@ -27,7 +27,7 @@ test.describe('Web UI', () => {
     test('入力エリアが表示される', async ({ page }) => {
       const input = page.locator('#input')
       await expect(input).toBeVisible()
-      await expect(input).toHaveAttribute('placeholder', 'Send a message...')
+      await expect(input).toHaveAttribute('placeholder', 'Ask Claude anything...')
     })
 
     test('送信ボタンが表示される', async ({ page }) => {
@@ -81,13 +81,12 @@ test.describe('Web UI', () => {
       await page.locator('#input').fill('tool-test')
       await page.locator('#send').click()
 
-      // ツールバッジ
-      const badge = page.locator('[data-testid="tool-badge"]').first()
-      await expect(badge).toContainText('Edit', { timeout: 5000 })
-
-      // ツール詳細パネル
+      // ツール詳細パネル（inputイベントで直接作成される）
       const detail = page.locator('[data-testid="tool-detail"]').first()
       await expect(detail).toBeVisible({ timeout: 5000 })
+
+      // パネルヘッダーにツール名
+      await expect(detail.locator('.tool-name')).toContainText('Edit')
 
       // パネルヘッダーにファイル名
       await expect(detail.locator('.tool-file')).toContainText('/tmp/test.ts')
@@ -104,11 +103,12 @@ test.describe('Web UI', () => {
       await page.locator('#input').fill('bash-test')
       await page.locator('#send').click()
 
-      const badge = page.locator('[data-testid="tool-badge"]').first()
-      await expect(badge).toContainText('Bash', { timeout: 5000 })
-
+      // ツール詳細パネル
       const detail = page.locator('[data-testid="tool-detail"]').first()
       await expect(detail).toBeVisible({ timeout: 5000 })
+
+      // パネルヘッダーにツール名
+      await expect(detail.locator('.tool-name')).toContainText('Bash')
 
       // コマンド表示（クリックして展開）
       await detail.locator('.tool-detail-header').click()

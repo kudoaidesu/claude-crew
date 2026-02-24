@@ -9,170 +9,187 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0d1117;--surface:#161b22;--border:#30363d;
-  --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;
-  --warning:#d29922;--danger:#f85149;--success:#3fb950;
-  --font-mono:'SF Mono',Menlo,'Cascadia Code',Consolas,monospace;
-  --diff-add:rgba(63,185,80,.15);--diff-del:rgba(248,81,73,.15);
-  --diff-add-text:#3fb950;--diff-del-text:#f85149;
+  --bg:#1e1e2e;--surface:#252536;--surface-hover:#2a2a3d;
+  --border:#333346;--border-light:#3e3e56;
+  --text:#cdd6f4;--text-bright:#fff;--muted:#6c7086;
+  --accent:#c084fc;--accent-dim:rgba(192,132,252,.12);--accent-border:rgba(192,132,252,.25);
+  --user-bg:#2a2a3d;--user-border:#3e3e56;
+  --warning:#f9e2af;--warning-bg:rgba(249,226,175,.08);
+  --danger:#f38ba8;--danger-bg:rgba(243,139,168,.08);
+  --success:#a6e3a1;--success-bg:rgba(166,227,161,.08);
+  --diff-add:rgba(166,227,161,.12);--diff-del:rgba(243,139,168,.12);
+  --diff-add-text:#a6e3a1;--diff-del-text:#f38ba8;
+  --font-sans:-apple-system,system-ui,'Segoe UI','Helvetica Neue',sans-serif;
+  --font-mono:'SF Mono',Menlo,'Cascadia Code','JetBrains Mono',Consolas,monospace;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:14px;line-height:1.6}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:14px;line-height:1.6}
 body{display:flex;flex-direction:column;height:100dvh}
 
 /* ── ヘッダー ── */
-.header{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
-.header h1{font-size:14px;font-weight:600;flex:1;color:var(--accent)}
-.header select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:12px;font-family:var(--font-mono)}
-.header button{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px}
+.header{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.header-logo{display:flex;align-items:center;gap:6px;color:var(--accent);font-weight:700;font-size:13px;font-family:var(--font-mono)}
+.header-logo svg{width:18px;height:18px;fill:currentColor}
+.header-spacer{flex:1}
+.header-btn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:12px;font-family:var(--font-mono);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s}
+.header-btn:hover{color:var(--text);border-color:var(--border-light);background:var(--surface-hover)}
+.header-btn.active{color:var(--accent);border-color:var(--accent-border)}
+.model-select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;font-family:var(--font-mono);cursor:pointer}
+.model-select:focus{outline:none;border-color:var(--accent)}
 
 /* ── メッセージエリア ── */
-.messages{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
+.messages{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:16px}
 
-/* ユーザー入力: ❯ プロンプト風 */
-.msg{margin-bottom:4px}
-.msg.user .content{color:var(--text);font-weight:600;white-space:pre-wrap;word-break:break-word}
-.msg.user .content::before{content:'❯ ';color:var(--accent);font-weight:700}
+/* ── ユーザーメッセージ ── */
+.msg.user{display:flex;justify-content:flex-end}
+.msg.user .bubble{background:var(--user-bg);border:1px solid var(--user-border);border-radius:12px 12px 2px 12px;padding:10px 14px;max-width:85%;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.5;color:var(--text-bright)}
 
-/* アシスタント出力 */
-.msg.assistant{margin-bottom:20px}
-.msg.assistant .content{color:var(--text);word-break:break-word;font-family:-apple-system,system-ui,'Segoe UI',sans-serif;font-size:14px;line-height:1.7}
+/* ── アシスタントメッセージ ── */
+.msg.assistant{display:flex;flex-direction:column;gap:8px}
+.msg.assistant .content{color:var(--text);word-break:break-word;font-size:14px;line-height:1.7}
 
-/* ── マークダウン要素 ── */
-.msg.assistant .content h1{font-size:20px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);color:var(--text)}
-.msg.assistant .content h2{font-size:17px;font-weight:700;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);color:var(--text)}
-.msg.assistant .content h3{font-size:15px;font-weight:700;margin:14px 0 6px;color:var(--text)}
-.msg.assistant .content h4{font-size:14px;font-weight:600;margin:12px 0 4px;color:var(--muted)}
-.msg.assistant .content p{margin:8px 0}
-.msg.assistant .content ul,.msg.assistant .content ol{padding-left:24px;margin:8px 0}
-.msg.assistant .content li{margin:3px 0}
+/* ── マークダウン ── */
+.msg.assistant .content h1{font-size:20px;font-weight:700;margin:16px 0 8px;color:var(--text-bright)}
+.msg.assistant .content h2{font-size:17px;font-weight:700;margin:14px 0 6px;color:var(--text-bright)}
+.msg.assistant .content h3{font-size:15px;font-weight:700;margin:12px 0 4px;color:var(--text-bright)}
+.msg.assistant .content p{margin:6px 0}
+.msg.assistant .content ul,.msg.assistant .content ol{padding-left:20px;margin:6px 0}
+.msg.assistant .content li{margin:2px 0}
 .msg.assistant .content li::marker{color:var(--muted)}
-.msg.assistant .content strong{color:#fff;font-weight:700}
+.msg.assistant .content strong{color:var(--text-bright);font-weight:600}
 .msg.assistant .content em{color:var(--muted);font-style:italic}
-.msg.assistant .content hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+.msg.assistant .content hr{border:none;border-top:1px solid var(--border);margin:12px 0}
 .msg.assistant .content a{color:var(--accent);text-decoration:none}
 .msg.assistant .content a:hover{text-decoration:underline}
 
-/* コードブロック */
-.msg.assistant .content pre{position:relative;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;margin:10px 0;font-size:13px;line-height:1.5}
+/* ── コードブロック ── */
+.msg.assistant .content pre{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0;font-size:13px;line-height:1.5}
 .msg.assistant .content code{font-family:var(--font-mono);font-size:13px}
 .msg.assistant .content p code,
-.msg.assistant .content li code{background:rgba(110,118,129,.4);padding:2px 6px;border-radius:3px;font-size:12px}
-.msg.assistant .content pre code{background:none;padding:0;border-radius:0;font-size:13px}
-
-/* コピーボタン */
-.code-copy-btn{position:absolute;top:6px;right:6px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px;font-family:var(--font-mono);cursor:pointer;opacity:0;transition:opacity .15s}
+.msg.assistant .content li code{background:rgba(192,132,252,.12);color:var(--accent);padding:2px 6px;border-radius:4px;font-size:12px}
+.msg.assistant .content pre code{background:none;padding:0;border-radius:0;font-size:13px;color:var(--text)}
+.code-copy-btn{position:absolute;top:8px;right:8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--font-mono);cursor:pointer;opacity:0;transition:opacity .15s}
 pre:hover .code-copy-btn{opacity:1}
-.code-copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.code-copy-btn:hover{color:var(--accent);border-color:var(--accent-border)}
 .code-copy-btn.copied{color:var(--success);border-color:var(--success)}
 
-/* テーブル */
-.msg.assistant .content table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;font-family:var(--font-mono)}
-.msg.assistant .content th{background:var(--surface);color:var(--text);font-weight:600;text-align:left;padding:8px 12px;border:1px solid var(--border)}
-.msg.assistant .content td{padding:6px 12px;border:1px solid var(--border);color:var(--text)}
-.msg.assistant .content tr:nth-child(even) td{background:rgba(22,27,34,.5)}
+/* ── テーブル ── */
+.msg.assistant .content table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px;font-family:var(--font-mono)}
+.msg.assistant .content th{background:var(--surface);color:var(--text-bright);font-weight:600;text-align:left;padding:6px 10px;border:1px solid var(--border)}
+.msg.assistant .content td{padding:6px 10px;border:1px solid var(--border)}
+.msg.assistant .content tr:nth-child(even) td{background:var(--surface)}
 
-/* 引用 */
-.msg.assistant .content blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:10px 0;color:var(--muted);background:rgba(88,166,255,.05);border-radius:0 4px 4px 0}
+/* ── 引用 ── */
+.msg.assistant .content blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:8px 0;color:var(--muted);background:var(--accent-dim);border-radius:0 6px 6px 0}
 
-/* ── ツールバッジ ── */
-.tools-row{margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px}
-.tool-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.2);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--font-mono)}
-.tool-badge.active{animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-
-/* ── ツール詳細パネル ── */
-.tool-detail{margin:6px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-family:var(--font-mono);font-size:12px}
-.tool-detail-header{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface);cursor:pointer;user-select:none}
-.tool-detail-header:hover{background:rgba(88,166,255,.05)}
-.tool-detail-header .tool-icon{font-size:10px;transition:transform .15s;color:var(--muted)}
-.tool-detail-header .tool-icon.open{transform:rotate(90deg)}
-.tool-detail-header .tool-name{color:var(--accent);font-weight:600}
-.tool-detail-header .tool-file{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tool-detail-body{display:none;padding:8px 10px;background:var(--bg);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.4}
+/* ── ツール実行パネル ── */
+.tool-detail{margin:4px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-family:var(--font-mono);font-size:12px;background:var(--surface)}
+.tool-detail-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;user-select:none;transition:background .1s}
+.tool-detail-header:hover{background:var(--surface-hover)}
+.tool-detail-header .tool-chevron{font-size:9px;color:var(--muted);transition:transform .15s;width:12px;text-align:center}
+.tool-detail-header .tool-chevron.open{transform:rotate(90deg)}
+.tool-detail-header .tool-icon-label{display:flex;align-items:center;gap:6px}
+.tool-detail-header .tool-emoji{font-size:14px}
+.tool-detail-header .tool-name{color:var(--accent);font-weight:600;font-size:12px}
+.tool-detail-header .tool-file{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.tool-detail-header .tool-status{font-size:10px;color:var(--success)}
+.tool-detail-body{display:none;padding:10px 12px;background:var(--bg);border-top:1px solid var(--border);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.4;font-size:12px}
 .tool-detail-body.open{display:block}
 
-/* diff表示 */
-.diff-line{padding:0 4px}
+/* diff */
+.diff-line{padding:1px 6px;font-family:var(--font-mono);font-size:12px}
 .diff-add{background:var(--diff-add);color:var(--diff-add-text)}
 .diff-del{background:var(--diff-del);color:var(--diff-del-text)}
-.diff-hunk{color:var(--accent);font-weight:600;margin-top:4px}
+.diff-hunk{color:var(--accent);font-weight:600;margin-top:4px;font-size:11px}
 
 /* ── 警告バッジ ── */
-.warning-badge{display:flex;align-items:center;gap:6px;background:rgba(210,153,34,.1);color:var(--warning);border:1px solid rgba(210,153,34,.25);border-radius:4px;padding:6px 10px;font-size:12px;margin:6px 0;font-family:var(--font-mono)}
+.warning-badge{display:flex;align-items:center;gap:8px;background:var(--warning-bg);color:var(--warning);border:1px solid rgba(249,226,175,.2);border-radius:8px;padding:8px 12px;font-size:12px;margin:4px 0;font-family:var(--font-mono)}
 
 /* ── コスト表示 ── */
-.meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;gap:12px;font-family:var(--font-mono)}
+.meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:12px;font-family:var(--font-mono)}
 
 /* ── 入力エリア ── */
-.input-area{border-top:1px solid var(--border);background:var(--surface);padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom));flex-shrink:0}
-.input-row{display:flex;gap:8px;align-items:flex-end}
-.input-row::before{content:'❯';color:var(--accent);font-weight:700;font-size:15px;padding:8px 0;flex-shrink:0}
-.input-row textarea{flex:1;background:transparent;color:var(--text);border:none;border-bottom:1px solid var(--border);padding:8px 4px;font-size:14px;font-family:var(--font-mono);resize:none;min-height:36px;max-height:120px;line-height:1.4}
-.input-row textarea:focus{outline:none;border-bottom-color:var(--accent)}
-.input-row textarea::placeholder{color:var(--muted)}
-.input-row button{width:36px;height:36px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--accent);font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono)}
-.input-row button:hover{background:rgba(88,166,255,.1)}
-.input-row button:disabled{opacity:.3;cursor:not-allowed}
-/* 中断ボタン */
-#abort{display:none;color:var(--danger);border-color:var(--danger)}
-#abort:hover{background:rgba(248,81,73,.1)}
+.input-area{border-top:1px solid var(--border);background:var(--surface);padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom));flex-shrink:0}
+.input-box{border:1px solid var(--border);border-radius:10px;background:var(--bg);overflow:hidden;transition:border-color .15s}
+.input-box:focus-within{border-color:var(--accent-border)}
+.input-box textarea{width:100%;background:transparent;color:var(--text);border:none;padding:10px 14px;font-size:14px;font-family:var(--font-sans);resize:none;min-height:40px;max-height:150px;line-height:1.4}
+.input-box textarea:focus{outline:none}
+.input-box textarea::placeholder{color:var(--muted)}
+.input-footer{display:flex;align-items:center;gap:6px;padding:4px 8px 6px}
+.input-footer .model-indicator{font-size:11px;color:var(--muted);font-family:var(--font-mono);flex:1}
+.input-footer button{width:30px;height:30px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s}
+.input-footer button:hover{background:var(--accent-dim);color:var(--accent)}
+.input-footer button:disabled{opacity:.3;cursor:not-allowed}
+.input-footer button.send-btn{background:var(--accent);color:#1e1e2e;border-radius:6px}
+.input-footer button.send-btn:hover{opacity:.9}
+.input-footer button.send-btn:disabled{opacity:.3}
+.input-footer button.abort-btn{display:none;background:var(--danger-bg);color:var(--danger)}
+.input-footer button.abort-btn:hover{background:rgba(243,139,168,.2)}
 
 /* ── ローディング ── */
-.typing{display:flex;gap:4px;padding:6px 0}
-.typing span{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate;opacity:.6}
-.typing span:nth-child(2){animation-delay:.2s}
-.typing span:nth-child(3){animation-delay:.4s}
-@keyframes bounce{to{opacity:.2;transform:translateY(-3px)}}
+.typing{display:flex;align-items:center;gap:6px;padding:8px 0;color:var(--muted);font-size:13px}
+.typing-dots{display:flex;gap:3px}
+.typing-dots span{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate;opacity:.5}
+.typing-dots span:nth-child(2){animation-delay:.2s}
+.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{to{opacity:.15;transform:translateY(-3px)}}
 
-/* ── ドロワー（共通） ── */
-.drawer{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:10;display:none}
+/* ── ドロワー ── */
+.drawer{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:10;display:none;backdrop-filter:blur(2px)}
 .drawer.open{display:block}
-.drawer-content{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-radius:12px 12px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto;border:1px solid var(--border)}
-.drawer-content h2{font-size:14px;margin-bottom:10px;color:var(--accent)}
+.drawer-content{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-radius:14px 14px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto;border:1px solid var(--border)}
 
-/* プロジェクトアイテム */
-.project-item{display:flex;flex-direction:column;padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;cursor:pointer;font-family:var(--font-mono)}
-.project-item:hover,.project-item.active{border-color:var(--accent);background:rgba(88,166,255,.05)}
-.project-item .name{font-weight:600;font-size:13px;color:var(--text)}
-.project-item .path{font-size:11px;color:var(--muted);margin-top:2px}
-
-/* セッションアイテム */
-.session-item{display:flex;flex-direction:column;padding:10px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;cursor:pointer;font-family:var(--font-mono)}
-.session-item:hover{border-color:var(--accent);background:rgba(88,166,255,.05)}
-.session-item.active{border-color:var(--success);background:rgba(63,185,80,.05)}
-.session-item .preview{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.session-item .session-meta{display:flex;gap:8px;font-size:11px;color:var(--muted);margin-top:4px}
-.session-item .delete-session{align-self:flex-end;color:var(--danger);background:none;border:none;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font-mono)}
-.session-item .delete-session:hover{text-decoration:underline}
-
-/* ── ドロワータブ ── */
+/* ドロワータブ */
 .drawer-tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)}
-.drawer-tab{padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:var(--font-mono);border-bottom:2px solid transparent}
+.drawer-tab{padding:8px 14px;font-size:13px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:var(--font-sans);border-bottom:2px solid transparent;font-weight:500;transition:color .1s}
+.drawer-tab:hover{color:var(--text)}
 .drawer-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .drawer-tab-content{display:none}
 .drawer-tab-content.active{display:block}
+
+/* プロジェクトアイテム */
+.project-item{display:flex;flex-direction:column;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:all .1s}
+.project-item:hover{border-color:var(--border-light);background:var(--surface-hover)}
+.project-item.active{border-color:var(--accent-border);background:var(--accent-dim)}
+.project-item .name{font-weight:600;font-size:13px;color:var(--text-bright)}
+.project-item .path{font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--font-mono)}
+
+/* セッションアイテム */
+.session-item{display:flex;flex-direction:column;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:all .1s}
+.session-item:hover{border-color:var(--border-light);background:var(--surface-hover)}
+.session-item.active{border-color:var(--accent-border);background:var(--accent-dim)}
+.session-item .preview{font-size:13px;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-item .session-meta{display:flex;gap:8px;font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--font-mono)}
+.session-item .delete-session{align-self:flex-end;color:var(--danger);background:none;border:none;font-size:11px;cursor:pointer;padding:2px 6px;font-family:var(--font-mono);opacity:.6;transition:opacity .1s}
+.session-item .delete-session:hover{opacity:1}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1 id="title">claude-crew</h1>
-  <select id="model">
+  <div class="header-logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <span id="title">claude-crew</span>
+  </div>
+  <div class="header-spacer"></div>
+  <select id="model" class="model-select">
     <option value="sonnet">sonnet</option>
     <option value="opus">opus</option>
     <option value="haiku">haiku</option>
   </select>
-  <button id="historyBtn" onclick="openDrawer('sessions')" title="Sessions">&#128340;</button>
-  <button onclick="openDrawer('projects')" title="Projects">&#9776;</button>
+  <button class="header-btn" id="historyBtn" onclick="openDrawer('sessions')" title="Sessions">&#128340; History</button>
+  <button class="header-btn" onclick="openDrawer('projects')" title="Projects">&#9776;</button>
 </div>
 
 <div class="messages" id="messages"></div>
 
 <div class="input-area">
-  <div class="input-row">
-    <textarea id="input" rows="1" placeholder="Send a message..." enterkeyhint="send"></textarea>
-    <button id="abort" onclick="abortCurrentStream()" title="Abort">&#9632;</button>
-    <button id="send" onclick="sendMessage()">&#9654;</button>
+  <div class="input-box">
+    <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="send"></textarea>
+    <div class="input-footer">
+      <span class="model-indicator" id="modelIndicator">sonnet</span>
+      <button class="abort-btn" id="abort" onclick="abortCurrentStream()" title="Stop">&#9632;</button>
+      <button class="send-btn" id="send" onclick="sendMessage()" title="Send (Enter)">&#9654;</button>
+    </div>
   </div>
 </div>
 
@@ -202,8 +219,16 @@ const messagesEl = document.getElementById('messages')
 const inputEl = document.getElementById('input')
 const sendBtn = document.getElementById('send')
 const abortBtn = document.getElementById('abort')
+const modelIndicator = document.getElementById('modelIndicator')
 
-// --- marked カスタムレンダラー（コピーボタン付きコードブロック） ---
+// ツールアイコンマップ
+const TOOL_ICONS = {
+  Read: '📄', Write: '✏️', Edit: '✏️', Bash: '💻',
+  Glob: '🔍', Grep: '🔍', WebFetch: '🌐', WebSearch: '🌐',
+  Task: '🤖', TodoWrite: '📝', NotebookEdit: '📓',
+}
+
+// --- marked カスタムレンダラー ---
 const renderer = new marked.Renderer()
 renderer.code = function({ text, lang }) {
   const langLabel = lang ? esc(lang) : ''
@@ -221,7 +246,6 @@ function copyCode(btn) {
     btn.classList.add('copied')
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 1500)
   }).catch(() => {
-    // fallback
     const ta = document.createElement('textarea')
     ta.value = text
     document.body.appendChild(ta)
@@ -233,6 +257,11 @@ function copyCode(btn) {
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 1500)
   })
 }
+
+// --- モデル選択 ---
+document.getElementById('model').addEventListener('change', (e) => {
+  modelIndicator.textContent = e.target.value
+})
 
 // --- 初期化 ---
 async function init() {
@@ -292,7 +321,7 @@ async function loadSessions() {
 function renderSessionList(list) {
   const container = document.getElementById('sessionList')
   if (list.length === 0) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">No sessions yet</div>'
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px;text-align:center">No sessions yet</div>'
     return
   }
   container.innerHTML = ''
@@ -362,7 +391,7 @@ async function sendMessage() {
   addMessage('user', text)
   const assistantEl = addMessage('assistant', '')
   const content = assistantEl.querySelector('.content')
-  content.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>'
+  content.innerHTML = '<div class="typing"><div class="typing-dots"><span></span><span></span><span></span></div></div>'
 
   try {
     const res = await fetch('/api/chat', {
@@ -404,7 +433,7 @@ async function sendMessage() {
       }
     }
   } catch (e) {
-    content.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`
+    content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
   }
 
   currentStreamId = null
@@ -419,8 +448,7 @@ function handleSSE(event, data, content, msgEl) {
 
     if (!content._fullText) content._fullText = ''
     content._fullText += data
-    // ツールパネルを保持しつつマークダウンを更新
-    const preserved = content.querySelectorAll('.tools-row, .tool-detail, .warning-badge')
+    const preserved = content.querySelectorAll('.tool-detail, .warning-badge')
     const preservedHTML = Array.from(preserved).map(el => el.outerHTML).join('')
     content.innerHTML = preservedHTML + marked.parse(content._fullText)
     scrollToBottom()
@@ -430,28 +458,17 @@ function handleSSE(event, data, content, msgEl) {
     try {
       const info = JSON.parse(data)
       if (info.status === 'start') {
-        let toolsRow = content.querySelector('.tools-row')
-        if (!toolsRow) { toolsRow = document.createElement('div'); toolsRow.className = 'tools-row'; content.prepend(toolsRow) }
-        const badge = document.createElement('span')
-        badge.className = 'tool-badge active'
-        badge.setAttribute('data-testid', 'tool-badge')
-        badge.textContent = info.name
-        toolsRow.appendChild(badge)
+        // ストリーミング中のバッジは不要（detailパネルで表示）
       }
       if (info.status === 'input' && info.detail) {
-        // ツール詳細パネル追加
         const panel = createToolDetailPanel(info.detail)
-        // toolsRowの後に挿入
-        const toolsRow = content.querySelector('.tools-row')
-        if (toolsRow) toolsRow.after(panel)
+        // テキスト出力の前に挿入
+        const firstText = content.querySelector('p, h1, h2, h3, ul, ol, pre, blockquote, table')
+        if (firstText) firstText.before(panel)
         else content.prepend(panel)
-        // バッジのアニメーション停止
-        const badges = content.querySelectorAll('.tool-badge.active')
-        badges.forEach(b => { if (b.textContent === info.name) b.classList.remove('active') })
         scrollToBottom()
       }
       if (info.status === 'output' && info.detail) {
-        // 最後の同名パネルに出力を追記
         const panels = content.querySelectorAll('.tool-detail')
         for (let i = panels.length - 1; i >= 0; i--) {
           const nameEl = panels[i].querySelector('.tool-name')
@@ -519,12 +536,17 @@ function createToolDetailPanel(detail) {
   panel.setAttribute('data-testid', 'tool-detail')
 
   const summary = getToolSummary(detail)
+  const icon = TOOL_ICONS[detail.name] || '🔧'
 
   panel.innerHTML = `
     <div class="tool-detail-header" onclick="toggleToolDetail(this)">
-      <span class="tool-icon">&#9654;</span>
-      <span class="tool-name">${esc(detail.name)}</span>
+      <span class="tool-chevron">&#9654;</span>
+      <div class="tool-icon-label">
+        <span class="tool-emoji">${icon}</span>
+        <span class="tool-name">${esc(detail.name)}</span>
+      </div>
       <span class="tool-file">${esc(summary)}</span>
+      <span class="tool-status">&#10003;</span>
     </div>
     <div class="tool-detail-body">${formatToolInput(detail)}</div>
   `
@@ -555,7 +577,7 @@ function formatToolInput(detail) {
   }
   if (detail.name === 'Write') {
     const content = inp.content || ''
-    return `<div class="diff-add" style="max-height:200px;overflow:auto">${esc(content)}</div>`
+    return `<div class="diff-add" style="max-height:200px;overflow:auto;padding:4px 6px">${esc(content)}</div>`
   }
   return `<div>${esc(JSON.stringify(inp, null, 2))}</div>`
 }
@@ -579,7 +601,7 @@ function appendToolOutput(panel, output) {
 }
 
 function toggleToolDetail(header) {
-  const icon = header.querySelector('.tool-icon')
+  const icon = header.querySelector('.tool-chevron')
   const body = header.nextElementSibling
   icon.classList.toggle('open')
   body.classList.toggle('open')
@@ -590,7 +612,11 @@ function addMessage(role, text) {
   const el = document.createElement('div')
   el.className = `msg ${role}`
   el.setAttribute('data-testid', `msg-${role}`)
-  el.innerHTML = `<div class="content">${role === 'user' ? esc(text) : text}</div>`
+  if (role === 'user') {
+    el.innerHTML = `<div class="bubble">${esc(text)}</div>`
+  } else {
+    el.innerHTML = `<div class="content">${text}</div>`
+  }
   messagesEl.appendChild(el)
   scrollToBottom()
   return el
@@ -609,7 +635,7 @@ function esc(s) {
 
 function autoResize() {
   inputEl.style.height = 'auto'
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px'
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 150) + 'px'
 }
 inputEl.addEventListener('input', autoResize)
 
