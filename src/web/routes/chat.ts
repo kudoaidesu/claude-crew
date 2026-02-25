@@ -18,6 +18,32 @@ import { createLogger } from '../../utils/logger.js'
 
 const log = createLogger('web:chat')
 
+/**
+ * メッセージプレビューをクリーンアップ
+ * - XMLタグ（<ide_opened_file>等）を除去し、中のテキストだけ抽出
+ * - system-reminder タグを除去
+ * - 先頭の空白・改行をトリム
+ * - UUID/ハッシュ値のみの場合は空文字を返す（呼び出し元でフォールバック）
+ */
+function cleanPreview(raw: string): string {
+  let text = raw
+  // システムタグを中身ごと除去（閉じタグあり）
+  text = text.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*?<\/\1>/g, '')
+  // 閉じタグなし（切り詰めで閉じタグが欠落）→ 開始タグ以降を全除去
+  text = text.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*/g, '')
+  // 残った単独タグも除去
+  text = text.replace(/<[^>]+>/g, '')
+  // タグ除去済みの既存データ対応: IDEコンテキストの定型文を除去
+  text = text.replace(/^The user opened the file\b.*$/gm, '')
+  text = text.replace(/^The user's IDE selection.*$/gm, '')
+  text = text.replace(/^This (may or may not|is|represents).*$/gm, '')
+  // 改行をスペースに
+  text = text.replace(/\s+/g, ' ').trim()
+  // UUID/ハッシュ値のみ（例: 6e56d8c1-847...）は空にする
+  if (/^[0-9a-f-]{8,}$/i.test(text)) return ''
+  return text.slice(0, 100)
+}
+
 // アクティブセッション管理（ファイル永続化）
 export interface SessionEntry {
   sessionId: string
@@ -106,35 +132,49 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
       const sessionId = file.replace('.jsonl', '')
 
       try {
-        // 先頭4KBだけ読んでuserメッセージを探す（大きいファイルでも高速）
-        const buf = Buffer.alloc(4096)
+        // ユーザーメッセージ行だけ抽出して高速スキャン
+        // TextDecoder(stream)でUTF-8マルチバイト境界の文字化けを防止
+        const chunkSize = 8192
+        const buf = Buffer.alloc(chunkSize)
         const fd = openSync(filePath, 'r')
-        const bytesRead = readSync(fd, buf, 0, 4096, 0)
-        closeSync(fd)
-        const head = buf.toString('utf-8', 0, bytesRead)
+        const decoder = new TextDecoder('utf-8')
         let preview = ''
-        for (const line of head.split('\n')) {
-          if (!line.trim()) continue
-          try {
-            const obj = JSON.parse(line)
-            if (obj.type === 'user' && obj.message?.content) {
-              const textContent = obj.message.content.find(
-                (c: { type: string; text?: string }) => c.type === 'text'
-              )
-              if (textContent?.text) {
-                preview = textContent.text.slice(0, 100)
-                break
+        let pos = 0
+        const fileSize = statSync(filePath).size
+        const maxScan = Math.min(fileSize, 256 * 1024) // 最大256KB
+        let partial = ''
+        scanLoop:
+        while (pos < maxScan) {
+          const bytesRead = readSync(fd, buf, 0, chunkSize, pos)
+          if (bytesRead === 0) break
+          pos += bytesRead
+          partial += decoder.decode(buf.subarray(0, bytesRead), { stream: pos < maxScan })
+          const lines = partial.split('\n')
+          partial = lines.pop() || '' // 最後の不完全行を保持
+          for (const line of lines) {
+            if (!line.includes('"type":"user"')) continue // 高速フィルタ
+            try {
+              const obj = JSON.parse(line)
+              if (obj.type === 'user' && obj.message?.content) {
+                const textContent = obj.message.content.find(
+                  (c: { type: string; text?: string }) => c.type === 'text'
+                )
+                if (textContent?.text) {
+                  const cleaned = cleanPreview(textContent.text)
+                  if (cleaned) { preview = cleaned; break scanLoop }
+                }
               }
-            }
-          } catch { /* skip malformed lines */ }
+            } catch { /* skip malformed lines */ }
+          }
         }
+        closeSync(fd)
 
         results.push({
           sessionId,
           project: cwd,
           model: '',
           lastUsed: mtime,
-          messagePreview: preview || sessionId.slice(0, 12),
+          messagePreview: preview || 'Untitled',
         })
       } catch { /* skip unreadable files */ }
     }
@@ -157,7 +197,18 @@ function getMergedSessions(cwd?: string): SessionEntry[] {
   const filtered = memSessions.filter(s => s.project === cwd)
 
   const sdkSessions = scanSdkSessions(cwd)
+  const sdkMap = new Map(sdkSessions.map(s => [s.sessionId, s]))
   const existingIds = new Set(filtered.map(s => s.sessionId))
+
+  // インメモリセッションのプレビューをSDKで補完（クリーン後に空になる場合）
+  for (const mem of filtered) {
+    if (!cleanPreview(mem.messagePreview)) {
+      const sdk = sdkMap.get(mem.sessionId)
+      if (sdk?.messagePreview) {
+        mem.messagePreview = sdk.messagePreview
+      }
+    }
+  }
 
   // SDKにしかないセッションを追加
   for (const sdk of sdkSessions) {
@@ -373,7 +424,7 @@ chatRoutes.post('/', async (c) => {
           project: cwd,
           model,
           lastUsed: Date.now(),
-          messagePreview: body.message.slice(0, 100),
+          messagePreview: cleanPreview(body.message) || body.message.slice(0, 100),
         })
         // 古いセッションを削除（最大50件）
         if (sessions.size > 50) {
@@ -421,7 +472,10 @@ chatRoutes.get('/sessions', (c) => {
   }
 
   const all = getMergedSessions(project)
-  const page = all.slice(offset, offset + limit)
+  const page = all.slice(offset, offset + limit).map(s => ({
+    ...s,
+    messagePreview: cleanPreview(s.messagePreview) || 'Untitled',
+  }))
   return c.json({ items: page, total: all.length, offset, limit })
 })
 

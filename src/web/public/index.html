@@ -63,6 +63,11 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .msg.user{display:flex;justify-content:flex-end}
 .msg.user .bubble{background:var(--user-bg);border:1px solid var(--user-border);border-radius:12px 12px 2px 12px;padding:10px 14px;max-width:85%;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.5;color:var(--text-bright)}
 
+/* ── 割り込みインジケーター ── */
+.msg.interrupt{display:flex;justify-content:center;padding:4px 0}
+.msg.interrupt .interrupt-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.msg.interrupt .interrupt-badge svg{flex-shrink:0}
+
 /* ── アシスタントメッセージ ── */
 .msg.assistant{display:flex;flex-direction:column;gap:8px}
 .msg.assistant .content{color:var(--text);word-break:break-word;font-size:14px;line-height:1.7}
@@ -192,8 +197,9 @@ pre:hover .code-copy-btn{opacity:1}
 .drawer-content{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-radius:14px 14px 0 0;padding:0 16px 16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto;border:1px solid var(--border)}
 
 /* ドロワータブ */
-.drawer-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;padding-top:16px;margin-bottom:12px}
-.drawer-tab{padding:8px 14px;font-size:13px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:var(--font-sans);border-bottom:2px solid transparent;font-weight:500;transition:color .1s}
+.drawer-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;padding-top:16px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}
+.drawer-tabs::-webkit-scrollbar{display:none}
+.drawer-tab{padding:8px 14px;font-size:13px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:var(--font-sans);border-bottom:2px solid transparent;font-weight:500;transition:color .1s;white-space:nowrap;flex-shrink:0}
 .drawer-tab:hover{color:var(--text)}
 .drawer-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .drawer-tab-content{display:none}
@@ -565,7 +571,7 @@ function restoreProjectTabs(projectPath) {
         pendingMessage: null,
         messagesEl,
         fullTexts: new WeakMap(),
-        label: saved.label || 'New Chat',
+        label: cleanLabel(saved.label) || 'New Chat',
       })
 
       if (saved.sessionId) {
@@ -1428,6 +1434,9 @@ function switchDrawerTab(tab) {
     const el = document.getElementById(id + 'Tab')
     if (el) el.classList.toggle('active', tab === id)
   })
+  // アクティブタブを見える位置にスクロール
+  const activeBtn = document.querySelector(`.drawer-tab[data-tab="${tab}"]`)
+  if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   if (tab === 'sessions') loadSessions()
   if (tab === 'projects') refreshProjects()
   if (tab === 'files') loadFileTree()
@@ -1436,6 +1445,31 @@ function switchDrawerTab(tab) {
   if (tab === 'tools') loadTools()
   if (tab === 'links') loadLinks()
 }
+
+// ドロワータブのスクロールフェード制御
+;(function() {
+  const tabs = document.querySelector('.drawer-tabs')
+  if (!tabs) return
+  function updateFade() {
+    const atEnd = tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 2
+    const atStart = tabs.scrollLeft <= 2
+    if (atEnd && atStart) {
+      tabs.style.maskImage = 'none'
+      tabs.style.webkitMaskImage = 'none'
+    } else if (atEnd) {
+      tabs.style.maskImage = 'linear-gradient(to left,#000 calc(100% - 24px),transparent)'
+      tabs.style.webkitMaskImage = 'linear-gradient(to left,#000 calc(100% - 24px),transparent)'
+    } else if (atStart) {
+      tabs.style.maskImage = 'linear-gradient(to right,#000 calc(100% - 24px),transparent)'
+      tabs.style.webkitMaskImage = 'linear-gradient(to right,#000 calc(100% - 24px),transparent)'
+    } else {
+      tabs.style.maskImage = 'linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)'
+      tabs.style.webkitMaskImage = 'linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)'
+    }
+  }
+  tabs.addEventListener('scroll', updateFade, { passive: true })
+  updateFade()
+})()
 
 // --- セッション履歴 ---
 let sessionOffset = 0
@@ -1493,7 +1527,7 @@ function renderSessionList(list, total, append) {
     const statusLabel = openTabId ? '<span style="color:var(--accent);font-size:10px">OPEN</span>' : ''
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:4px">
-        <span class="preview" style="flex:1">${esc(s.messagePreview || s.sessionId)} ${statusLabel}</span>
+        <span class="preview" style="flex:1">${esc(cleanLabel(s.messagePreview) || 'Untitled')} ${statusLabel}</span>
         <button class="delete-session" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0" title="Delete">&times;</button>
       </div>
       <div class="session-meta">
@@ -1569,7 +1603,13 @@ function renderHistoryMessages(tabId, messages) {
     if (msg.role === 'user' && msg.type === 'text') {
       currentAssistantEl = null
       currentContent = null
-      addMessage(tabId, 'user', msg.text || '')
+      const raw = msg.text || ''
+      if (/^\[Request interrupted by user\]$/.test(raw.trim())) {
+        addInterruptIndicator(tabId)
+        continue
+      }
+      const cleaned = cleanUserMessage(raw)
+      if (cleaned) addMessage(tabId, 'user', cleaned)
     }
     else if (msg.role === 'assistant' && msg.type === 'text') {
       if (!currentAssistantEl) {
@@ -1617,7 +1657,7 @@ function resumeSession(s) {
   const tab = tabs.get(activeTabId)
   if (tab) {
     tab.sessionId = s.sessionId
-    tab.label = (s.messagePreview || s.sessionId.slice(0, 12)).slice(0, 30)
+    tab.label = (cleanLabel(s.messagePreview) || 'Untitled').slice(0, 30)
     tab.messagesEl.innerHTML = ''
     tab.fullTexts = new WeakMap()
     tab._historyLoaded = false
@@ -1678,12 +1718,12 @@ async function sendMessage() {
   autoResize()
 
   if (tab.label === 'New Chat') {
-    updateTabLabel(activeTabId, raw || 'File upload')
+    updateTabLabel(activeTabId, cleanLabel(raw) || 'File upload')
   }
 
   const tabId = activeTabId
   const imageNames = fileImages.map(i => i.name).join(', ')
-  const displayMsg = raw || (imageNames ? `📎 ${imageNames}` : '(ファイル添付)')
+  const displayMsg = cleanUserMessage(raw) || (imageNames ? `📎 ${imageNames}` : '(ファイル添付)')
   addMessage(tabId, 'user', displayMsg)
   const assistantEl = addMessage(tabId, 'assistant', '')
   const content = assistantEl.querySelector('.content')
@@ -1742,6 +1782,7 @@ async function sendMessage() {
       if (!content.textContent.trim() && !content.querySelector('.tool-detail')) {
         assistantEl.remove()
       }
+      addInterruptIndicator(tabId)
     } else {
       content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
     }
@@ -1960,6 +2001,39 @@ function toggleToolDetail(header) {
 }
 
 // --- UI helpers ---
+/** ユーザーメッセージからシステムコンテキストを除去して表示用テキストを返す。空ならnull（非表示）*/
+function cleanUserMessage(raw) {
+  if (!raw) return null
+  let t = raw
+  // Skill展開コンテンツ（"Base directory for this skill:"で始まる全体）を除去
+  if (/^\s*Base directory for this skill:/i.test(t)) return null
+  // システムタグを中身ごと除去（閉じタグあり）
+  t = t.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*?<\/\1>/g, '')
+  // 閉じタグなし → 開始タグ以降を全除去
+  t = t.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*/g, '')
+  // 残った単独タグを除去
+  t = t.replace(/<[^>]+>/g, '')
+  // セッションエラー／再接続ログを除去
+  t = t.replace(/^\[[\d:]+\]\s*(Session failed|To reconnect):.*$/gm, '')
+  // IDE/システム由来のボイラープレートテキストを除去
+  t = t.replace(/^The user opened the file\b.*$/gm, '')
+  t = t.replace(/^The user's IDE selection.*$/gm, '')
+  t = t.replace(/^This (may or may not|is|represents).*$/gm, '')
+  t = t.replace(/\s+/g, ' ').trim()
+  return t || null
+}
+
+function addInterruptIndicator(tabId) {
+  const tab = tabs.get(tabId)
+  if (!tab) return
+  const el = document.createElement('div')
+  el.className = 'msg interrupt'
+  el.innerHTML = `<div class="interrupt-badge"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="3" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="5" width="6" height="6" rx="1" fill="currentColor"/></svg>Request interrupted</div>`
+  tab.messagesEl.appendChild(el)
+  scrollToBottom(tabId)
+  return el
+}
+
 function addMessage(tabId, role, text) {
   const tab = tabs.get(tabId)
   if (!tab) return
@@ -1986,6 +2060,28 @@ function esc(s) {
   const d = document.createElement('div')
   d.textContent = s
   return d.innerHTML
+}
+
+/** セッション名/タブラベル用のクリーンアップ */
+function cleanLabel(raw) {
+  if (!raw) return ''
+  let t = raw
+  // システムタグを中身ごと除去（閉じタグあり）
+  t = t.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*?<\/\1>/g, '')
+  // 閉じタグなし（切り詰めで閉じタグが欠落）→ 開始タグ以降を全除去
+  t = t.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*/g, '')
+  // 残った単独タグを除去
+  t = t.replace(/<[^>]+>/g, '')
+  // UTF-8文字化け（U+FFFD）を含む場合はデータ破損なので空を返す
+  if (t.includes('\uFFFD')) return ''
+  t = t.replace(/\uFFFD/g, '')
+  // タグ除去済みの既存データ対応: IDEコンテキストの定型文を除去
+  t = t.replace(/^The user opened the file\b.*$/gm, '')
+  t = t.replace(/^The user's IDE selection.*$/gm, '')
+  t = t.replace(/^This (may or may not|is|represents).*$/gm, '')
+  t = t.replace(/\s+/g, ' ').trim()
+  if (/^[0-9a-f-]{8,}$/i.test(t)) return ''
+  return t
 }
 
 function autoResize() {
@@ -2484,12 +2580,39 @@ function updateGitBar(data) {
   let right = ''
   const changed = data.files ? data.files.length : 0
   if (changed > 0) {
-    right += `<div class="git-statusbar-pill" style="color:var(--accent)">${ic('git-commit', 12)} ${changed}</div>`
+    right += `<div class="git-statusbar-pill" style="color:var(--accent)" onclick="event.stopPropagation();showGitPillTooltip(this,'changed',${changed})">${ic('git-commit', 12)} ${changed}</div>`
   }
   const up = data.unpushed ?? 0
   const down = data.unpulled ?? 0
-  right += `<div class="git-statusbar-pill${up > 0 ? ' warn' : ''}">↓${down} ↑${up}</div>`
+  right += `<div class="git-statusbar-pill${up > 0 ? ' warn' : ''}" onclick="event.stopPropagation();showGitPillTooltip(this,'sync',${down},${up})">↓${down} ↑${up}</div>`
   rightEl.innerHTML = right
+}
+
+function showGitPillTooltip(el, type, a, b) {
+  // 既存ツールチップがあれば消す
+  const old = document.getElementById('gitPillTooltip')
+  if (old) { old.remove(); return }
+  let msg = ''
+  if (type === 'changed') {
+    msg = `${a} file${a !== 1 ? 's' : ''} changed locally (uncommitted)`
+  } else {
+    const down = a, up = b ?? 0
+    const parts = []
+    if (down > 0) parts.push(`↓${down} commit${down !== 1 ? 's' : ''} to pull from remote`)
+    if (up > 0) parts.push(`↑${up} commit${up !== 1 ? 's' : ''} to push to remote`)
+    if (parts.length === 0) parts.push('Local and remote are in sync')
+    msg = parts.join('\n')
+  }
+  const tip = document.createElement('div')
+  tip.id = 'gitPillTooltip'
+  tip.style.cssText = 'position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;font-family:var(--font-mono);color:var(--text);white-space:pre-line;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:260px;line-height:1.5'
+  tip.textContent = msg
+  document.body.appendChild(tip)
+  const rect = el.getBoundingClientRect()
+  tip.style.top = (rect.bottom + 6) + 'px'
+  tip.style.right = (window.innerWidth - rect.right) + 'px'
+  const dismiss = (e) => { if (!tip.contains(e.target) && e.target !== el) { tip.remove(); document.removeEventListener('click', dismiss) } }
+  setTimeout(() => document.addEventListener('click', dismiss), 0)
 }
 
 init()
