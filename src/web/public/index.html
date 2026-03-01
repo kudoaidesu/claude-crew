@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Claude Code</title>
+<title>pocket-cc</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -35,6 +35,42 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .header-btn:hover{color:var(--text);border-color:var(--border-light);background:var(--surface-hover)}
 .header-btn.active{color:var(--accent);border-color:var(--accent-border)}
 .header-btn svg.ic{font-size:18px}
+
+/* ── タブアクションパネル ── */
+.tab-bar-wrap{position:relative;flex-shrink:0}
+.tap-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:7}
+.tap-overlay.open{display:block}
+.tab-action-panel{display:none;position:absolute;left:0;right:0;top:100%;background:var(--surface);border:1px solid var(--border-light);border-top:none;border-radius:0 0 10px 10px;box-shadow:0 12px 32px rgba(0,0,0,.6);z-index:8;padding:12px 14px;animation:tapSlideDown .15s ease-out}
+.tab-action-panel.open{display:block}
+@keyframes tapSlideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.tap-info{display:flex;flex-direction:column;gap:6px;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);font-size:12px;font-family:var(--font-mono)}
+.tap-field{display:flex;align-items:baseline;gap:8px;min-height:18px}
+.tap-label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;min-width:52px}
+.tap-val{color:var(--text);word-break:break-all;line-height:1.3}
+.tap-val.muted{color:var(--muted)}
+.tap-val .tap-status{font-weight:600}
+.tap-val .tap-status.s-idle{color:var(--success)}
+.tap-val .tap-status.s-active{color:var(--accent)}
+.tap-summary{white-space:pre-line;line-height:1.5;font-size:12px;color:var(--text)}
+.tap-summary .typing-dots{display:inline-flex}
+.tap-name-row{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.tap-name-suggest{color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tap-name-apply{background:none;border:1px solid var(--accent-border);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:10px;font-family:var(--font-mono);cursor:pointer;flex-shrink:0;transition:all .1s}
+.tap-name-apply:hover{background:var(--accent-dim)}
+.tap-name-edit{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:10px;font-family:var(--font-mono);cursor:pointer;flex-shrink:0;transition:all .1s}
+.tap-name-edit:hover{color:var(--text);border-color:var(--border-light)}
+.tap-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;margin-left:auto;display:flex;align-items:center;flex-shrink:0;border-radius:4px;transition:all .1s}
+.tap-dismiss:hover{color:var(--text);background:var(--surface-hover)}
+.tap-actions{display:flex;align-items:center;gap:6px}
+.tap-action-btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 14px;min-height:40px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font-mono);cursor:pointer;transition:all .1s;white-space:nowrap}
+.tap-action-btn:hover{background:var(--surface-hover);border-color:var(--border-light)}
+.tap-action-btn:active{transform:scale(.96)}
+.tap-action-btn:disabled{opacity:.3;cursor:default;transform:none}
+.tap-action-btn svg.ic{font-size:14px}
+.tap-action-btn.danger{color:var(--danger);margin-left:auto}
+.tap-action-btn.danger:hover{background:var(--danger-bg);border-color:rgba(243,139,168,.3)}
+.tab .tab-chevron{color:var(--muted);display:flex;align-items:center;flex-shrink:0;transition:transform .15s}
+.tab .tab-chevron.panel-open{transform:rotate(180deg)}
 .model-select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:var(--font-mono);cursor:pointer;min-width:0;flex-shrink:1;min-height:42px}
 .model-select:focus{outline:none;border-color:var(--accent)}
 
@@ -67,6 +103,8 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .msg.interrupt{display:flex;justify-content:center;padding:4px 0}
 .msg.interrupt .interrupt-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:11px;color:var(--muted);font-family:var(--font-mono)}
 .msg.interrupt .interrupt-badge svg{flex-shrink:0}
+.msg.system-notice{display:flex;justify-content:center;padding:4px 0}
+.msg.system-notice .notice-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;background:var(--accent-dim);border:1px solid var(--accent-border);font-size:11px;color:var(--accent);font-family:var(--font-mono)}
 
 /* ── アシスタントメッセージ ── */
 .msg.assistant{display:flex;flex-direction:column;gap:8px}
@@ -266,17 +304,6 @@ pre:hover .code-copy-btn{opacity:1}
   .input-footer button.send-btn{width:40px;height:40px}
   .messages{padding:10px}
 }
-@media(max-width:360px){
-  .header-logo svg.ic{font-size:14px}
-}
-
-/* ── Plan Mode バナー ── */
-.plan-banner{display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--accent-dim);border-bottom:1px solid var(--accent-border);font-size:12px;font-family:var(--font-mono);color:var(--accent);flex-shrink:0}
-.plan-banner.active{display:flex}
-.plan-banner svg.ic{font-size:13px;flex-shrink:0}
-.plan-banner .plan-label{font-weight:600}
-.plan-banner .plan-exit{margin-left:auto;background:none;border:1px solid var(--accent-border);color:var(--accent);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--font-mono);cursor:pointer}
-.plan-banner .plan-exit:hover{background:var(--accent-border)}
 
 /* ── Compacting バナー ── */
 .compact-banner{display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--warning-bg);border-bottom:1px solid rgba(249,226,175,.15);font-size:12px;font-family:var(--font-mono);color:var(--warning);flex-shrink:0}
@@ -310,13 +337,20 @@ pre:hover .code-copy-btn{opacity:1}
   <div class="header-logo" id="headerLogo"></div>
   <div class="header-spacer"></div>
   <button class="header-btn" id="planToggle" onclick="cyclePermissionMode()" title="Permission Mode"></button>
+  <button class="header-btn" id="observerBtn" onclick="window.location='/observer'" title="Observer"></button>
   <button class="header-btn" id="menuBtn" onclick="openDrawer()" title="Menu"></button>
 </div>
-<div class="plan-banner" id="planBanner"></div>
 <div class="compact-banner" id="compactBanner"></div>
 
-<div class="tab-bar" id="tabBar">
-  <div class="tab-add" id="tabAddBtn" onclick="createNewTab()" title="New Chat"></div>
+<div class="tab-bar-wrap">
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-add" id="tabAddBtn" onclick="createNewTab()" title="New Chat"></div>
+  </div>
+  <div id="tapOverlay" class="tap-overlay" onclick="closeTabActionPanel()"></div>
+  <div id="tabActionPanel" class="tab-action-panel">
+    <div class="tap-info" id="tapInfo"></div>
+    <div class="tap-actions" id="tapActions"></div>
+  </div>
 </div>
 
 <div id="sessionsContainer"></div>
@@ -334,7 +368,7 @@ pre:hover .code-copy-btn{opacity:1}
     <div class="input-footer">
       <button id="cmdBtn" onclick="toggleCmdMenu()" title="Commands (/)"></button>
       <button id="filesBtn" onclick="document.getElementById('fileInput').click()" title="Upload file"></button>
-      <select id="model" class="model-select">
+      <select id="model" class="model-select" onchange="onModelChange()">
         <option value="default">default (auto)</option>
         <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
         <option value="claude-opus-4-6">claude-opus-4-6</option>
@@ -438,6 +472,7 @@ pre:hover .code-copy-btn{opacity:1}
 const ICONS = {
   terminal:      '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
   clock:         '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'refresh-cw':  '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>',
   folder:        '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
   plus:          '<path d="M5 12h14"/><path d="M12 5v14"/>',
   x:             '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -492,8 +527,9 @@ const TOOL_ICON_MAP = {
 }
 
 // --- ヘッダー等にアイコンを注入 ---
-document.getElementById('headerLogo').innerHTML = ic('terminal', 18) + '<span id="title">claude-crew</span>'
+document.getElementById('headerLogo').innerHTML = ic('terminal', 18) + '<span id="title">pocket-cc</span>'
 document.getElementById('planToggle').innerHTML = ic('shield', 14) + '<span class="btn-label"> Default</span>'
+document.getElementById('observerBtn').innerHTML = ic('eye', 14)
 document.getElementById('menuBtn').innerHTML = ic('menu', 14)
 document.getElementById('tabAddBtn').innerHTML = ic('plus', 14)
 document.getElementById('cmdBtn').innerHTML = ic('slash', 14)
@@ -521,7 +557,7 @@ const tabs = new Map()
 function genTabId() { return 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2,6) }
 
 // --- セッション永続化 (localStorage) --- Project別にタブ状態を保持
-const STORAGE_KEY = 'claude-crew-tabs'
+const STORAGE_KEY = 'pocket-cc-tabs'
 
 function saveTabs() {
   try {
@@ -612,7 +648,7 @@ function restoreTabs() {
 
     // Permission Mode復元（タブ復元後に実行）
     if (store.permissionMode && typeof PERM_MODES !== 'undefined' && PERM_MODES[store.permissionMode]) {
-      setPermissionMode(store.permissionMode)
+      setPermissionMode(store.permissionMode, true)
     }
 
     return restored
@@ -624,6 +660,7 @@ function restoreTabs() {
 
 /** Project切替: 現在タブを退避→新Projectのタブを復元 */
 function switchProjectTabs(newProjectPath) {
+  closeTabActionPanel()
   // 現在のタブを保存
   saveTabs()
 
@@ -706,26 +743,24 @@ function cyclePermissionMode() {
   const idx = (order.indexOf(permissionMode) + 1) % order.length
   setPermissionMode(order[idx])
 }
-function setPermissionMode(mode) {
+function setPermissionMode(mode, silent) {
   permissionMode = mode
   saveTabs()
+  if (!silent) {
+    const tab = tabs.get(activeTabId)
+    if (tab) {
+      const el = document.createElement('div')
+      el.className = 'msg system-notice'
+      el.innerHTML = `<div class="notice-badge">Mode → ${esc(mode)}</div>`
+      tab.messagesEl.appendChild(el)
+      scrollToBottom(activeTabId)
+    }
+  }
   const cfg = PERM_MODES[mode]
   const btn = document.getElementById('planToggle')
-  const banner = document.getElementById('planBanner')
   btn.innerHTML = ic(cfg.icon, 14) + `<span class="btn-label"> ${cfg.label}</span>`
   btn.classList.toggle('active', mode !== 'default')
   btn.style.color = mode !== 'default' ? cfg.color : ''
-  if (cfg.banner) {
-    banner.classList.add('active')
-    banner.style.background = cfg.bannerBg
-    banner.style.borderColor = cfg.bannerBorder
-    banner.style.color = cfg.color
-    banner.innerHTML = `${ic(cfg.icon, 13)} <span class="plan-label">${cfg.label} Mode</span>`
-  } else {
-    banner.classList.remove('active')
-    banner.innerHTML = ''
-    banner.style = ''
-  }
   updateInputBoxModeColor()
 }
 // backward compat
@@ -973,8 +1008,7 @@ function copyLastResponse() {
   const msgs = tab.messagesEl.querySelectorAll('.msg.assistant .content')
   if (msgs.length === 0) return
   const lastContent = msgs[msgs.length - 1]
-  const fullText = tab.fullTexts.get(lastContent)
-  const text = fullText || lastContent.textContent
+  const text = collectSegmentTexts(lastContent, tab)
   navigator.clipboard.writeText(text).then(() => {
     showToast(`<h3>${ic('check', 16)} Copied!</h3><p>Last response copied to clipboard</p>`, 1500)
   }).catch(() => {
@@ -1000,9 +1034,11 @@ function exportConversation() {
   if (msgs.length === 0) { showToast('<p>No messages to export</p>', 1500); return }
   let md = `# ${tab.label}\n\n`
   msgs.forEach(msg => {
+    if (msg.classList.contains('interrupt') || msg.classList.contains('system-notice')) return
     const role = msg.classList.contains('user') ? 'User' : 'Assistant'
-    const content = msg.querySelector('.content')
-    const text = tab.fullTexts.get(content) || content.textContent
+    const el = msg.querySelector('.content') || msg.querySelector('.bubble')
+    if (!el) return
+    const text = el.classList.contains('content') ? collectSegmentTexts(el, tab) : el.textContent
     md += `## ${role}\n\n${text}\n\n---\n\n`
   })
   navigator.clipboard.writeText(md).then(() => {
@@ -1015,6 +1051,28 @@ function exportConversation() {
     a.click()
     showToast(`<h3>${ic('check', 16)} Downloaded!</h3>`, 1500)
   })
+}
+
+const MODEL_STORAGE_KEY = 'pocket-cc-model'
+
+function onModelChange() {
+  const model = document.getElementById('model').value
+  localStorage.setItem(MODEL_STORAGE_KEY, model)
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  const el = document.createElement('div')
+  el.className = 'msg system-notice'
+  el.innerHTML = `<div class="notice-badge">Model → ${esc(model)}</div>`
+  tab.messagesEl.appendChild(el)
+  scrollToBottom(activeTabId)
+}
+
+function restoreModel() {
+  const saved = localStorage.getItem(MODEL_STORAGE_KEY)
+  if (!saved) return
+  const sel = document.getElementById('model')
+  const opt = [...sel.options].find(o => o.value === saved)
+  if (opt) sel.value = saved
 }
 
 function showStatusToast() {
@@ -1170,6 +1228,7 @@ function createNewTab(label) {
 }
 
 function switchTab(tabId) {
+  closeTabActionPanel()
   if (!tabs.has(tabId)) return
   activeTabId = tabId
   tabs.forEach((t, id) => {
@@ -1211,6 +1270,189 @@ function closeTab(tabId) {
   saveTabs()
 }
 
+// --- タブアクションパネル ---
+let tabPanelOpen = false
+
+function toggleTabActionPanel() {
+  if (tabPanelOpen) { closeTabActionPanel(); return }
+  tabPanelOpen = true
+  document.getElementById('tapOverlay').classList.add('open')
+  document.getElementById('tabActionPanel').classList.add('open')
+  // シェブロンを回転
+  const chev = document.querySelector('.tab.active .tab-chevron')
+  if (chev) chev.classList.add('panel-open')
+  populateTabActionPanel()
+  setTimeout(() => {
+    document.addEventListener('click', _tapOutside)
+    document.addEventListener('keydown', _tapEscape)
+  }, 0)
+}
+
+function closeTabActionPanel() {
+  tabPanelOpen = false
+  document.getElementById('tapOverlay').classList.remove('open')
+  document.getElementById('tabActionPanel').classList.remove('open')
+  document.querySelectorAll('.tab-chevron').forEach(c => c.classList.remove('panel-open'))
+  document.removeEventListener('click', _tapOutside)
+  document.removeEventListener('keydown', _tapEscape)
+}
+
+function _tapOutside(e) {
+  const panel = document.getElementById('tabActionPanel')
+  if (!panel.contains(e.target) && !e.target.closest('.tab.active')) closeTabActionPanel()
+}
+function _tapEscape(e) { if (e.key === 'Escape') closeTabActionPanel() }
+
+const _summaryCache = new Map()
+
+async function fetchSummary(sessionId, project) {
+  const el = document.getElementById('tapSummary')
+  if (!el) return
+
+  const cached = _summaryCache.get(sessionId)
+  if (cached) { el.innerHTML = esc(cached).replace(/\n/g, '<br>'); return }
+
+  try {
+    const res = await fetch(`/api/chat/summary/${encodeURIComponent(sessionId)}?${new URLSearchParams({ project })}`)
+    const data = await res.json()
+    const target = document.getElementById('tapSummary')
+    if (!target) return
+    if (data.summary) {
+      _summaryCache.set(sessionId, data.summary)
+      target.innerHTML = esc(data.summary).replace(/\n/g, '<br>')
+    } else {
+      const tab = tabs.get(activeTabId)
+      const fallback = tab?.label && tab.label !== 'New Chat' ? tab.label : '—'
+      target.innerHTML = `<span style="color:var(--muted)">${esc(fallback)}</span>`
+    }
+  } catch {
+    const target = document.getElementById('tapSummary')
+    if (target) target.innerHTML = '<span style="color:var(--muted)">Failed to load</span>'
+  }
+}
+
+const _nameCache = new Map()
+
+async function fetchSuggestName(sessionId, project) {
+  const el = document.getElementById('tapNameSuggest')
+  if (!el) return
+
+  const cached = _nameCache.get(sessionId)
+  if (cached) {
+    renderNameSuggestion(el, cached)
+    return
+  }
+
+  try {
+    const res = await fetch(`/api/chat/suggest-name/${encodeURIComponent(sessionId)}?${new URLSearchParams({ project })}`)
+    const data = await res.json()
+    const target = document.getElementById('tapNameSuggest')
+    if (!target) return
+    if (data.name) {
+      _nameCache.set(sessionId, data.name)
+      renderNameSuggestion(target, data.name)
+    } else {
+      target.innerHTML = `<span style="color:var(--muted)">—</span>`
+    }
+  } catch {
+    const target = document.getElementById('tapNameSuggest')
+    if (target) target.innerHTML = `<span style="color:var(--muted)">—</span>`
+  }
+}
+
+function renderNameSuggestion(el, name) {
+  el.innerHTML = `
+    <span class="tap-name-row">
+      <span class="tap-name-suggest">${esc(name)}</span>
+      <button class="tap-name-apply" onclick="applyNameSuggestion('${esc(name).replace(/'/g, "\\'")}')">Apply</button>
+      <button class="tap-name-edit" onclick="editNameSuggestion('${esc(name).replace(/'/g, "\\'")}')">Edit</button>
+    </span>
+  `
+}
+
+function applyNameSuggestion(name) {
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  tab.label = name
+  renderTabs()
+  saveTabs()
+  closeTabActionPanel()
+}
+
+function editNameSuggestion(prefill) {
+  closeTabActionPanel()
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+  const name = prompt('Session name:', prefill)
+  if (name && name.trim()) {
+    tab.label = name.trim()
+    renderTabs()
+    saveTabs()
+  }
+}
+
+function populateTabActionPanel() {
+  const tab = tabs.get(activeTabId)
+  if (!tab) return
+
+  const sid = tab.sessionId
+  const msgCount = tab.messagesEl.querySelectorAll('.msg').length
+  let status = 'idle'
+  if (tab.compacting) status = 'compacting'
+  else if (tab.sending) status = 'streaming'
+  const sClass = status === 'idle' ? 's-idle' : 's-active'
+
+  const info = document.getElementById('tapInfo')
+  info.innerHTML = `
+    <div class="tap-field">
+      <span class="tap-label">Session</span>
+      <span class="tap-val ${sid ? 'muted' : ''}">${sid ? esc(sid) : 'New'}</span>
+      <button class="tap-dismiss" onclick="closeTabActionPanel()" title="Close panel">${ic('x', 14)}</button>
+    </div>
+    <div class="tap-field">
+      <span class="tap-label">Messages</span>
+      <span class="tap-val">${msgCount}</span>
+    </div>
+    <div class="tap-field">
+      <span class="tap-label">Status</span>
+      <span class="tap-val"><span class="tap-status ${sClass}">${status}</span></span>
+    </div>
+    ${sid ? `<div class="tap-field" style="align-items:flex-start">
+      <span class="tap-label">Summary</span>
+      <span class="tap-val tap-summary" id="tapSummary"><span class="typing-dots"><span></span><span></span><span></span></span></span>
+    </div>` : ''}
+    ${sid ? `<div class="tap-field">
+      <span class="tap-label">Name</span>
+      <span class="tap-val" id="tapNameSuggest"><span class="typing-dots" style="display:inline-flex"><span></span><span></span><span></span></span></span>
+    </div>` : ''}
+  `
+
+  // サマリー + 名前提案の非同期取得
+  if (sid && currentProject) {
+    fetchSummary(sid, currentProject)
+    fetchSuggestName(sid, currentProject)
+  }
+
+  // アクションボタン
+  const actions = [
+    { icon: 'list-checks', label: 'Sessions', fn: () => { closeTabActionPanel(); openDrawer('sessions') } },
+    { icon: 'refresh-cw', label: 'Refresh', fn: () => { closeTabActionPanel(); refreshActiveTab() }, disabled: !sid || tab.sending },
+    { icon: 'eraser', label: 'Clear', fn: () => { closeTabActionPanel(); clearCurrentTab() } },
+    { icon: 'trash-2', label: 'Close Tab', fn: () => { closeTabActionPanel(); closeTab(activeTabId) }, danger: true, hidden: tabs.size <= 1 },
+  ]
+  const container = document.getElementById('tapActions')
+  container.innerHTML = ''
+  for (const a of actions) {
+    if (a.hidden) continue
+    const btn = document.createElement('button')
+    btn.className = 'tap-action-btn' + (a.danger ? ' danger' : '')
+    btn.disabled = !!a.disabled
+    btn.innerHTML = `${ic(a.icon, 14)} ${a.label}`
+    btn.addEventListener('click', (e) => { e.stopPropagation(); a.fn() })
+    container.appendChild(btn)
+  }
+}
+
 function renderTabs() {
   const addBtn = tabBar.querySelector('.tab-add')
   tabBar.querySelectorAll('.tab').forEach(t => t.remove())
@@ -1218,20 +1460,24 @@ function renderTabs() {
   tabs.forEach((tab, tabId) => {
     const el = document.createElement('div')
     el.className = 'tab' + (tabId === activeTabId ? ' active' : '')
-    el.onclick = (e) => { if (!e.target.closest('.tab-close')) switchTab(tabId) }
+    el.onclick = (e) => {
+      if (e.target.closest('.tab-close')) return
+      if (tabId === activeTabId) { toggleTabActionPanel() }
+      else { closeTabActionPanel(); switchTab(tabId) }
+    }
 
     let inner = ''
     if (tab.sending) inner += '<span class="tab-streaming"></span>'
     inner += `<span class="tab-label">${esc(tab.label)}</span>`
+    if (tabId === activeTabId) inner += `<span class="tab-chevron">${ic('chevron-down', 10)}</span>`
+    el.innerHTML = inner
+
     if (tabs.size > 1) {
       const closeSpan = document.createElement('span')
       closeSpan.className = 'tab-close'
       closeSpan.innerHTML = ic('x', 11)
       closeSpan.addEventListener('click', (e) => { e.stopPropagation(); closeTab(tabId) })
-      el.innerHTML = inner
       el.appendChild(closeSpan)
-    } else {
-      el.innerHTML = inner
     }
     tabBar.insertBefore(el, addBtn)
   })
@@ -1282,6 +1528,9 @@ function abortCurrentTab() {
 let cachedProjects = []
 
 async function init() {
+  // localStorageからモデル選択を復元
+  restoreModel()
+
   // localStorageからタブ・プロジェクト・Permission Modeを復元
   const restored = restoreTabs()
 
@@ -1563,6 +1812,18 @@ function findTabBySessionId(sessionId) {
   return null
 }
 
+// --- アクティブタブリフレッシュ ---
+async function refreshActiveTab() {
+  const tab = tabs.get(activeTabId)
+  if (!tab?.sessionId || tab.sending) return
+
+  tab._historyLoaded = false
+  tab.messagesEl.innerHTML = ''
+  tab.fullTexts = new WeakMap()
+
+  await loadSessionHistory(activeTabId)
+}
+
 // --- 会話履歴の読み込み・描画 ---
 async function loadSessionHistory(tabId) {
   const tab = tabs.get(tabId)
@@ -1616,12 +1877,11 @@ function renderHistoryMessages(tabId, messages) {
         currentAssistantEl = addMessage(tabId, 'assistant', '')
         currentContent = currentAssistantEl.querySelector('.content')
       }
-      const existingText = tab.fullTexts.get(currentContent) || ''
+      const seg = getCurrentTextSegment(currentContent, tab)
+      const existingText = tab.fullTexts.get(seg) || ''
       const newText = existingText + (existingText ? '\n\n' : '') + (msg.text || '')
-      tab.fullTexts.set(currentContent, newText)
-      const preserved = currentContent.querySelectorAll('.tool-detail')
-      const preservedHTML = Array.from(preserved).map(el => el.outerHTML).join('')
-      currentContent.innerHTML = preservedHTML + marked.parse(newText)
+      tab.fullTexts.set(seg, newText)
+      seg.innerHTML = marked.parse(newText)
     }
     else if (msg.role === 'assistant' && msg.type === 'tool_use') {
       if (!currentAssistantEl) {
@@ -1779,7 +2039,7 @@ async function sendMessage() {
       // 割り込み中断: タイピングドットを削除、コンテンツが空なら要素ごと削除
       const typing = content.querySelector('.typing')
       if (typing) typing.remove()
-      if (!content.textContent.trim() && !content.querySelector('.tool-detail')) {
+      if (!content.querySelector('.text-segment') && !content.querySelector('.tool-detail') && !content.querySelector('.warning-badge')) {
         assistantEl.remove()
       }
       addInterruptIndicator(tabId)
@@ -1797,6 +2057,28 @@ async function sendMessage() {
   scrollToBottom(tabId)
 }
 
+// --- テキストセグメント管理 ---
+// contentの最後の子要素が.text-segmentならそれを返し、なければ新規作成してappend
+function getCurrentTextSegment(content, tab) {
+  const lastChild = content.lastElementChild
+  if (lastChild && lastChild.classList.contains('text-segment')) {
+    return lastChild
+  }
+  const seg = document.createElement('div')
+  seg.className = 'text-segment'
+  content.appendChild(seg)
+  return seg
+}
+
+// --- テキストセグメントからマークダウンテキストを収集 ---
+function collectSegmentTexts(content, tab) {
+  const segments = content.querySelectorAll('.text-segment')
+  if (segments.length > 0) {
+    return Array.from(segments).map(seg => tab.fullTexts.get(seg) || seg.textContent).join('\n\n')
+  }
+  return content.textContent
+}
+
 function handleSSE(tabId, event, data, content, msgEl) {
   const tab = tabs.get(tabId)
   if (!tab) return
@@ -1805,11 +2087,9 @@ function handleSSE(tabId, event, data, content, msgEl) {
     const typing = content.querySelector('.typing')
     if (typing) typing.remove()
 
-    if (!tab.fullTexts.has(content)) tab.fullTexts.set(content, '')
-    tab.fullTexts.set(content, tab.fullTexts.get(content) + data)
-    const preserved = content.querySelectorAll('.tool-detail, .warning-badge')
-    const preservedHTML = Array.from(preserved).map(el => el.outerHTML).join('')
-    content.innerHTML = preservedHTML + marked.parse(tab.fullTexts.get(content))
+    const seg = getCurrentTextSegment(content, tab)
+    tab.fullTexts.set(seg, (tab.fullTexts.get(seg) || '') + data)
+    seg.innerHTML = marked.parse(tab.fullTexts.get(seg))
     scrollToBottom(tabId)
   }
 
@@ -1818,9 +2098,7 @@ function handleSSE(tabId, event, data, content, msgEl) {
       const info = JSON.parse(data)
       if (info.status === 'input' && info.detail) {
         const panel = createToolDetailPanel(info.detail)
-        const firstText = content.querySelector('p, h1, h2, h3, ul, ol, pre, blockquote, table')
-        if (firstText) firstText.before(panel)
-        else content.prepend(panel)
+        content.appendChild(panel)
         scrollToBottom(tabId)
       }
       if (info.status === 'output' && info.detail) {
@@ -1867,9 +2145,13 @@ function handleSSE(tabId, event, data, content, msgEl) {
   if (event === 'result') {
     try {
       const r = JSON.parse(data)
-      if (r.sessionId) { tab.sessionId = r.sessionId; saveTabs() }
-      if (r.text && !tab.fullTexts.has(content)) {
-        content.innerHTML = marked.parse(r.text)
+      if (r.sessionId) { tab.sessionId = r.sessionId; _summaryCache.delete(r.sessionId); _nameCache.delete(r.sessionId); saveTabs() }
+      if (r.text && !content.querySelector('.text-segment')) {
+        const seg = document.createElement('div')
+        seg.className = 'text-segment'
+        seg.innerHTML = marked.parse(r.text)
+        content.appendChild(seg)
+        tab.fullTexts.set(seg, r.text)
       }
       if (r.cost) sessionTotalCost += r.cost
       if (r.turns) sessionTotalTurns += r.turns
@@ -1900,7 +2182,7 @@ function handleSSE(tabId, event, data, content, msgEl) {
         if (tab) tab.compacting = true
       }
       if (s.permissionMode) {
-        setPermissionMode(s.permissionMode === 'plan' ? 'plan' : s.permissionMode === 'auto-accept' ? 'auto-accept' : 'default')
+        setPermissionMode(s.permissionMode === 'plan' ? 'plan' : s.permissionMode === 'auto-accept' ? 'auto-accept' : 'default', true)
       }
     } catch {}
   }
@@ -2247,7 +2529,7 @@ async function loadServices() {
 // =====================================================
 // Links (ブックマーク)
 // =====================================================
-const LINKS_STORAGE_KEY = 'claude-crew-links'
+const LINKS_STORAGE_KEY = 'pocket-cc-links'
 const DEFAULT_LINKS = [
   { title: 'Claude Usage', url: 'https://claude.ai/settings/usage' },
   { title: 'ChatGPT Codex Usage', url: 'https://chatgpt.com/codex/settings/usage' },
