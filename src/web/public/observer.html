@@ -94,6 +94,19 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .layer-panel{display:none;padding:16px}
 .layer-panel.active{display:block}
 
+/* ── コンテキストバナー（親子関係表示） ── */
+.context-banner{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.context-breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--font-mono);color:var(--muted);flex-wrap:wrap}
+.context-breadcrumb .crumb{color:var(--text);cursor:pointer;text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px}
+.context-breadcrumb .crumb:hover{color:var(--accent);text-decoration-color:var(--accent)}
+.context-breadcrumb .sep{color:var(--muted);font-size:10px}
+.node-type-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--font-mono)}
+.node-type-badge.root{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-border)}
+.node-type-badge.subagent{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(137,180,250,.25)}
+.parent-instruction{margin:12px 16px 0;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;border-left:3px solid var(--accent)}
+.parent-instruction-label{font-size:10px;font-family:var(--font-mono);color:var(--accent);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.parent-instruction-text{font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto}
+
 /* Layer 1: Interface */
 .conv-msg{margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .conv-msg.user{background:var(--surface);border:1px solid var(--border);margin-left:20%}
@@ -183,6 +196,8 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
   </div>
 </div>
 
+<div id="contextBanner" class="context-banner" style="display:none"></div>
+
 <div class="main" id="main"></div>
 
 <script>
@@ -200,6 +215,7 @@ const ICONS = {
   'check-circle': '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>',
   'alert-triangle':'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   'inbox':        '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  'arrow-down-right':'<path d="m7 7 10 10"/><path d="M17 7v10H7"/>',
 }
 function ic(name, size) {
   const s = size ? `style="font-size:${size}px"` : ''
@@ -273,7 +289,9 @@ function render(state) {
     backBtn.onclick = goBack
   }
 
+  const contextBanner = document.getElementById('contextBanner')
   layerTabs.style.display = state.level === 'detail' ? 'flex' : 'none'
+  contextBanner.style.display = 'none'
 
   switch (state.level) {
     case 'sessions':
@@ -411,15 +429,57 @@ async function renderDetail(sessionId, agentId) {
   currentLayer = 'interface'
   updateLayerTabs()
 
+  // subagentType をクエリパラメータで渡す
+  const state = navStack[navStack.length - 1] || {}
   const agentParam = agentId ? `&agentId=${agentId}` : ''
+  const typeParam = state.badge ? `&subagentType=${encodeURIComponent(state.badge)}` : ''
   try {
-    const res = await fetch(`/api/observe/node/${sessionId}?project=${encodeURIComponent(currentProject)}${agentParam}`)
+    const res = await fetch(`/api/observe/node/${sessionId}?project=${encodeURIComponent(currentProject)}${agentParam}${typeParam}`)
     currentNodeData = await res.json()
+    renderContextBanner(currentNodeData, state)
     updateLayerTabCounts()
     renderLayer(currentLayer)
   } catch (e) {
     main.innerHTML = `<div class="empty-state">${ic('alert-triangle', 32)}<div>詳細読み込みエラー</div></div>`
   }
+}
+
+function renderContextBanner(data, state) {
+  const banner = document.getElementById('contextBanner')
+  const meta = data.meta || {}
+  const isSubagent = meta.nodeType === 'subagent'
+  const label = state.label || 'Root'
+
+  // パンくずリスト構築
+  // ツリーの state を navStack から探す
+  const treeState = navStack.find(s => s.level === 'tree')
+  const rootLabel = treeState ? 'ROOT' : ''
+
+  let html = '<div class="context-breadcrumb">'
+
+  if (isSubagent) {
+    const typeLabel = meta.subagentType || state.badge || 'Agent'
+    html += `<span class="node-type-badge subagent">${esc(typeLabel)}</span>`
+    if (rootLabel) {
+      html += `<span class="sep">&larr;</span>`
+      html += `<span class="crumb" onclick="goBack()">ROOT</span>`
+    }
+  } else {
+    html += `<span class="node-type-badge root">ROOT</span>`
+    html += `<span style="color:var(--text);font-size:12px">${esc(label)}</span>`
+  }
+  html += '</div>'
+
+  // 親からの指示
+  if (isSubagent && meta.parentInstruction) {
+    html += `<div class="parent-instruction">
+      <div class="parent-instruction-label">${ic('arrow-down-right', 12)} 親からの指示</div>
+      <div class="parent-instruction-text">${esc(meta.parentInstruction)}</div>
+    </div>`
+  }
+
+  banner.innerHTML = html
+  banner.style.display = ''
 }
 
 function switchLayer(layer) {

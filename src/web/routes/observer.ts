@@ -35,7 +35,14 @@ interface TreeNode {
 }
 
 interface NodeDetail {
-  meta: { id: string; model?: string; messageCount: number }
+  meta: {
+    id: string
+    model?: string
+    messageCount: number
+    nodeType: 'root' | 'subagent'
+    subagentType?: string      // Explore / Plan / Code 等
+    parentInstruction?: string // 親からこのノードに渡されたプロンプト
+  }
   interface: {
     messages: Array<{ role: 'user' | 'assistant'; text: string; timestamp?: string }>
   }
@@ -395,9 +402,9 @@ async function parseSubagentSummary(
 
 const LAYER_LIMIT = 100
 
-async function extractNodeDetail(filePath: string, nodeId: string): Promise<NodeDetail> {
+async function extractNodeDetail(filePath: string, nodeId: string, isSubagent: boolean): Promise<NodeDetail> {
   const detail: NodeDetail = {
-    meta: { id: nodeId, messageCount: 0 },
+    meta: { id: nodeId, messageCount: 0, nodeType: isSubagent ? 'subagent' : 'root' },
     interface: { messages: [] },
     orchestration: { delegations: [] },
     execution: { tools: [], summary: {} },
@@ -408,6 +415,7 @@ async function extractNodeDetail(filePath: string, nodeId: string): Promise<Node
   const modelsSet = new Set<string>()
   let firstTimestamp = ''
   let lastTimestamp = ''
+  let isFirstLine = true
 
   const rl = createInterface({
     input: createReadStream(filePath, { encoding: 'utf-8' }),
@@ -418,6 +426,17 @@ async function extractNodeDetail(filePath: string, nodeId: string): Promise<Node
     if (!line.trim()) continue
     try {
       const record = JSON.parse(line) as JsonlRecord
+
+      // サブエージェントの最初の user メッセージ: content が文字列 = 親からの prompt
+      if (isFirstLine && isSubagent && record.type === 'user') {
+        isFirstLine = false
+        // サブエージェントの第1行は content が string（Agent SDKの仕様）
+        const rawContent = (record.message as { content?: unknown })?.content
+        if (typeof rawContent === 'string' && rawContent) {
+          detail.meta.parentInstruction = rawContent.slice(0, 2000)
+        }
+      }
+      isFirstLine = false
 
       // progress エントリはスキップ
       if (record.type === 'progress') continue
@@ -617,7 +636,12 @@ observerRoutes.get('/node/:sessionId', async (c) => {
   }
 
   try {
-    const detail = await extractNodeDetail(filePath, agentId || 'root')
+    const detail = await extractNodeDetail(filePath, agentId || 'root', !!agentId)
+    // subagentType は tree データから取得できるが、APIではフロントが渡す
+    if (agentId) {
+      const subagentType = c.req.query('subagentType')
+      if (subagentType) detail.meta.subagentType = subagentType
+    }
     return c.json(detail)
   } catch (e) {
     return c.json({ error: `Failed to extract detail: ${e}` }, 500)
