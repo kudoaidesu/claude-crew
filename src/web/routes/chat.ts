@@ -11,7 +11,9 @@ import { createInterface } from 'node:readline'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
-import { createChatStream, abortStream } from '../services/chat-service.js'
+import { startStream, readStream, getStreamStatus, abortStream } from '../services/chat-service.js'
+import type { ChatEvent } from '../services/chat-service.js'
+import { resolveRequest, getRequest } from '../services/permission-bridge.js'
 import { runClaudeCli } from '../../llm/claude-cli.js'
 import { validateInput } from '../../utils/sanitize.js'
 import { isValidSessionId, isProjectPathAllowed } from '../path-guard.js'
@@ -85,8 +87,68 @@ function persistSessions(): void {
 
 loadSessions()
 
-// streamId → sessionId マッピング（中断用）
-const streamToSession = new Map<string, string>()
+// SSE イベント書き出しヘルパー（POST /api/chat と POST /api/chat/reconnect で共用）
+async function writeEventSSE(
+  stream: { writeSSE: (msg: { id?: string; event: string; data: string }) => Promise<void> },
+  event: ChatEvent,
+  index: number,
+  streamId?: string,
+): Promise<{ sessionId?: string; streamId?: string }> {
+  const id = String(index)
+  switch (event.type) {
+    case 'stream-start':
+      await stream.writeSSE({ id, event: 'stream-start', data: JSON.stringify({ streamId: event.streamId }) })
+      return { streamId: event.streamId }
+    case 'session':
+      await stream.writeSSE({ id, event: 'session', data: JSON.stringify({ sessionId: event.sessionId, streamId }) })
+      return { sessionId: event.sessionId }
+    case 'text':
+      await stream.writeSSE({ id, event: 'text', data: event.text })
+      break
+    case 'tool':
+      await stream.writeSSE({ id, event: 'tool', data: JSON.stringify({ name: event.name, status: event.status, detail: event.detail }) })
+      break
+    case 'warning':
+      await stream.writeSSE({ id, event: 'warning', data: JSON.stringify({ command: event.command, label: event.label }) })
+      break
+    case 'result':
+      await stream.writeSSE({
+        id,
+        event: 'result',
+        data: JSON.stringify({
+          text: event.text, sessionId: event.sessionId,
+          cost: event.cost, turns: event.turns, durationMs: event.durationMs, isError: event.isError,
+        }),
+      })
+      return { sessionId: event.sessionId }
+    case 'error':
+      await stream.writeSSE({ id, event: 'error', data: JSON.stringify({ message: event.message }) })
+      break
+    case 'status':
+      await stream.writeSSE({ id, event: 'status', data: JSON.stringify({ status: event.status, permissionMode: event.permissionMode }) })
+      break
+    case 'compact':
+      await stream.writeSSE({ id, event: 'compact', data: JSON.stringify({ trigger: event.trigger, preTokens: event.preTokens }) })
+      break
+    case 'tokenUsage':
+      await stream.writeSSE({ id, event: 'tokenUsage', data: JSON.stringify({ inputTokens: event.inputTokens, contextWindow: event.contextWindow }) })
+      break
+    case 'ask-question':
+      await stream.writeSSE({ id, event: 'ask-question', data: JSON.stringify({ requestId: event.requestId, questions: event.questions }) })
+      break
+    case 'tool-approval':
+      await stream.writeSSE({
+        id,
+        event: 'tool-approval',
+        data: JSON.stringify({ requestId: event.requestId, toolName: event.toolName, input: event.input, description: event.description, decisionReason: event.decisionReason }),
+      })
+      break
+    case 'heartbeat':
+      await stream.writeSSE({ id, event: 'heartbeat', data: '' })
+      break
+  }
+  return {}
+}
 
 export function getSessions(): SessionEntry[] {
   return Array.from(sessions.entries())
@@ -322,99 +384,31 @@ chatRoutes.post('/', async (c) => {
 
   const model = body.model || 'sonnet'
 
+  // SDK処理開始（HTTP接続から分離 — 接続が切れてもSDKは継続）
+  let streamId: string
+  try {
+    streamId = await startStream({
+      message: sanitizedMessage,
+      cwd,
+      model,
+      sessionId: body.sessionId,
+      planMode: body.permissionMode === 'plan' || body.planMode,
+      permissionMode: body.permissionMode,
+      images: body.images,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.error(`startStream failed: ${message}`)
+    return c.json({ error: message }, 500)
+  }
+
   return streamSSE(c, async (stream) => {
-    let currentStreamId = ''
+    let lastSessionId = body.sessionId || ''
 
     try {
-      const chatStream = createChatStream({
-        message: sanitizedMessage,
-        cwd,
-        model,
-        sessionId: body.sessionId,
-        planMode: body.permissionMode === 'plan' || body.planMode,
-        permissionMode: body.permissionMode,
-        images: body.images,
-      })
-
-      let lastSessionId = body.sessionId || ''
-
-      for await (const event of chatStream) {
-        switch (event.type) {
-          case 'stream-start':
-            currentStreamId = event.streamId
-            streamToSession.set(currentStreamId, lastSessionId)
-            await stream.writeSSE({
-              event: 'stream-start',
-              data: JSON.stringify({ streamId: currentStreamId }),
-            })
-            break
-          case 'session':
-            if (event.sessionId) {
-              lastSessionId = event.sessionId
-            }
-            await stream.writeSSE({
-              event: 'session',
-              data: JSON.stringify({ sessionId: event.sessionId, streamId: currentStreamId }),
-            })
-            break
-          case 'text':
-            await stream.writeSSE({ event: 'text', data: event.text })
-            break
-          case 'tool':
-            await stream.writeSSE({
-              event: 'tool',
-              data: JSON.stringify({
-                name: event.name,
-                status: event.status,
-                detail: event.detail,
-              }),
-            })
-            break
-          case 'warning':
-            await stream.writeSSE({
-              event: 'warning',
-              data: JSON.stringify({ command: event.command, label: event.label }),
-            })
-            break
-          case 'result':
-            lastSessionId = event.sessionId || lastSessionId
-            await stream.writeSSE({
-              event: 'result',
-              data: JSON.stringify({
-                text: event.text,
-                sessionId: lastSessionId,
-                cost: event.cost,
-                turns: event.turns,
-                durationMs: event.durationMs,
-                isError: event.isError,
-              }),
-            })
-            break
-          case 'error':
-            await stream.writeSSE({
-              event: 'error',
-              data: JSON.stringify({ message: event.message }),
-            })
-            break
-          case 'status':
-            await stream.writeSSE({
-              event: 'status',
-              data: JSON.stringify({ status: event.status, permissionMode: event.permissionMode }),
-            })
-            break
-          case 'compact':
-            await stream.writeSSE({
-              event: 'compact',
-              data: JSON.stringify({ trigger: event.trigger, preTokens: event.preTokens }),
-            })
-            break
-          case 'tokenUsage':
-            await stream.writeSSE({
-              event: 'tokenUsage',
-              data: JSON.stringify({ inputTokens: event.inputTokens, contextWindow: event.contextWindow }),
-            })
-            break
-        }
+      for await (const { event, index } of readStream(streamId)) {
+        const result = await writeEventSSE(stream, event, index, streamId)
+        if (result.sessionId) lastSessionId = result.sessionId
       }
 
       // セッション保存（ファイル永続化）
@@ -427,7 +421,6 @@ chatRoutes.post('/', async (c) => {
           lastUsed: Date.now(),
           messagePreview: cleanPreview(body.message) || body.message.slice(0, 100),
         })
-        // 古いセッションを削除（最大50件）
         if (sessions.size > 50) {
           const oldest = Array.from(sessions.entries())
             .sort((a, b) => a[1].lastUsed - b[1].lastUsed)
@@ -437,18 +430,54 @@ chatRoutes.post('/', async (c) => {
         }
         persistSessions()
       }
-      if (currentStreamId) {
-        streamToSession.delete(currentStreamId)
-      }
     } catch (err) {
+      // writeSSE失敗（クライアント切断等）→ SDK処理は継続、HTTP接続だけ終了
       const message = err instanceof Error ? err.message : String(err)
-      log.error(`Chat error: ${message}`)
-      await stream.writeSSE({
-        event: 'error',
-        data: JSON.stringify({ message }),
-      })
+      log.warn(`SSE write error (SDK continues): ${message}`)
     }
   })
+})
+
+// POST /api/chat/respond — ユーザーの質問回答 / ツール承認レスポンス
+chatRoutes.post('/respond', async (c) => {
+  const body = await c.req.json<{
+    requestId: string
+    type: 'answer' | 'approval'
+    answers?: Record<string, string>
+    approved?: boolean
+    denyMessage?: string
+  }>()
+
+  if (!body.requestId) {
+    return c.json({ error: 'requestId is required' }, 400)
+  }
+
+  const pending = getRequest(body.requestId)
+  if (!pending) {
+    return c.json({ error: 'Request not found or expired' }, 404)
+  }
+
+  if (body.type === 'answer' && pending.toolName === 'AskUserQuestion') {
+    resolveRequest(body.requestId, {
+      behavior: 'allow',
+      updatedInput: { ...pending.input, answers: body.answers || {} },
+    })
+    return c.json({ ok: true })
+  }
+
+  if (body.type === 'approval') {
+    if (body.approved) {
+      resolveRequest(body.requestId, { behavior: 'allow', updatedInput: pending.input })
+    } else {
+      resolveRequest(body.requestId, {
+        behavior: 'deny',
+        message: body.denyMessage || 'User denied tool execution',
+      })
+    }
+    return c.json({ ok: true })
+  }
+
+  return c.json({ error: 'Invalid response type' }, 400)
 })
 
 // POST /api/chat/abort — ストリーム中断
@@ -527,14 +556,14 @@ const compactJobs = new Map<string, CompactJob>()
 
 async function runCompact(sessionId: string, cwd: string, model: string): Promise<{ preTokens?: number }> {
   let preTokens: number | undefined
-  const stream = createChatStream({
+  const streamId = await startStream({
     message: '/compact',
     cwd,
     model,
     sessionId,
     permissionMode: 'plan',
   })
-  for await (const event of stream) {
+  for await (const { event } of readStream(streamId)) {
     if (event.type === 'compact' && event.preTokens) {
       preTokens = event.preTokens
     }
@@ -582,6 +611,46 @@ chatRoutes.post('/compact', async (c) => {
   })
 
   return c.json({ started: true })
+})
+
+// GET /api/chat/stream-status/:streamId — ストリーム生存確認（クライアントリコネクト用）
+chatRoutes.get('/stream-status/:streamId', (c) => {
+  const streamId = c.req.param('streamId')
+  const status = getStreamStatus(streamId)
+  if (!status) {
+    return c.json({ error: 'Stream not found' }, 404)
+  }
+  return c.json(status)
+})
+
+// POST /api/chat/reconnect — ストリームに再接続（途切れたSSEのリカバリ）
+chatRoutes.post('/reconnect', async (c) => {
+  const { streamId, lastEventIndex } = await c.req.json<{
+    streamId: string
+    lastEventIndex?: number
+  }>()
+
+  if (!streamId) {
+    return c.json({ error: 'streamId is required' }, 400)
+  }
+
+  const status = getStreamStatus(streamId)
+  if (!status) {
+    return c.json({ error: 'Stream not found' }, 404)
+  }
+
+  const fromIndex = (lastEventIndex ?? -1) + 1
+
+  return streamSSE(c, async (stream) => {
+    try {
+      for await (const { event, index } of readStream(streamId, fromIndex)) {
+        await writeEventSSE(stream, event, index, streamId)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.warn(`Reconnect SSE write error: ${message}`)
+    }
+  })
 })
 
 // GET /api/chat/compact-status/:sessionId — コンパクトジョブ状態確認
