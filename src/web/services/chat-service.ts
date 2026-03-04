@@ -7,6 +7,7 @@
  */
 import { detectDanger } from '../danger-detect.js'
 import { createLogger } from '../../utils/logger.js'
+import { createPendingRequest, cleanupStreamRequests, type PermissionResult } from './permission-bridge.js'
 
 const log = createLogger('web:chat-service')
 
@@ -34,6 +35,18 @@ export interface ToolDetail {
   output?: string
 }
 
+export interface AskQuestionOption {
+  label: string
+  description: string
+}
+
+export interface AskQuestionItem {
+  question: string
+  header: string
+  options: AskQuestionOption[]
+  multiSelect: boolean
+}
+
 export type ChatEvent =
   | { type: 'session'; sessionId: string }
   | { type: 'stream-start'; streamId: string }
@@ -45,6 +58,9 @@ export type ChatEvent =
   | { type: 'status'; status: string; permissionMode?: string }
   | { type: 'compact'; trigger: string; preTokens?: number }
   | { type: 'tokenUsage'; inputTokens: number; contextWindow: number }
+  | { type: 'ask-question'; requestId: string; questions: AskQuestionItem[] }
+  | { type: 'tool-approval'; requestId: string; toolName: string; input: Record<string, unknown>; description?: string; decisionReason?: string }
+  | { type: 'heartbeat' }
 
 /** Agent SDK から返される生メッセージ */
 export interface SdkMessage {
@@ -96,16 +112,25 @@ async function loadSdk(): Promise<SdkModule> {
 
 // ── Query Options ビルダー（テスト可能） ──────────────
 
-export function buildQueryOptions(params: ChatParams): Record<string, unknown> {
+type CanUseTool = (
+  toolName: string,
+  input: Record<string, unknown>,
+  options: Record<string, unknown>,
+) => Promise<PermissionResult>
+
+export function buildQueryOptions(
+  params: ChatParams,
+  canUseTool?: CanUseTool,
+): Record<string, unknown> {
   // permissionMode mapping:
-  //   'default'     → bypassPermissions (個人サーバー用、明示選択のみ)
   //   'plan'        → plan (計画モード、デフォルト)
+  //   'default'     → default (危険操作は承認要求、AskUserQuestion対応)
   //   'auto-accept' → acceptEdits (編集のみ自動承認)
-  //   'yolo'        → bypassPermissions + dangerouslySkipPermissions (全ツール無制限)
+  //   'yolo'        → bypassPermissions + dangerouslySkipPermissions (全自動)
   const mode = params.permissionMode || (params.planMode ? 'plan' : 'plan')
   const sdkMode = mode === 'plan' ? 'plan'
     : mode === 'auto-accept' ? 'acceptEdits'
-    : mode === 'default' ? 'bypassPermissions'
+    : mode === 'default' ? 'default'
     : mode === 'yolo' ? 'bypassPermissions'
     : 'plan'
   const options: Record<string, unknown> = {
@@ -119,6 +144,10 @@ export function buildQueryOptions(params: ChatParams): Record<string, unknown> {
     settingSources: ['project', 'user'],
     // Claude Code 標準のシステムプロンプトをそのまま使用
     systemPrompt: { type: 'preset', preset: 'claude_code' },
+  }
+
+  if (canUseTool) {
+    options.canUseTool = canUseTool
   }
 
   if (params.sessionId) {
@@ -235,41 +264,170 @@ export function parseSdkMessage(msg: SdkMessage, currentSessionId: string): Chat
   return events
 }
 
+// ── StreamBuffer — リコネクト対応イベントバッファ ──────
+
+/**
+ * SDKメッセージと canUseTool イベントをindex付きで蓄積するバッファ。
+ * 複数リーダーが独立して読める（リコネクト時に新リーダーを作成）。
+ */
+class StreamBuffer {
+  private events: Array<ChatEvent | null> = []
+  private waiters: Array<() => void> = []
+
+  push(event: ChatEvent | null) {
+    this.events.push(event)
+    const w = this.waiters
+    this.waiters = []
+    for (const wake of w) wake()
+  }
+
+  get length() { return this.events.length }
+
+  async *read(fromIndex = 0): AsyncGenerator<{ event: ChatEvent; index: number }> {
+    let cursor = fromIndex
+    while (true) {
+      if (cursor < this.events.length) {
+        const event = this.events[cursor]
+        if (event === null) return
+        yield { event, index: cursor }
+        cursor++
+      } else {
+        await new Promise<void>((resolve) => {
+          this.waiters.push(resolve)
+        })
+      }
+    }
+  }
+}
+
+// ── Detached Stream 管理 ──────────────────────────────
+
+interface DetachedStream {
+  buffer: StreamBuffer
+  abortController: AbortController
+  heartbeatTimer: ReturnType<typeof setInterval>
+  status: 'active' | 'done' | 'error'
+  sessionId: string
+  createdAt: number
+  doneAt?: number
+}
+
+const detachedStreams = new Map<string, DetachedStream>()
+
+const STREAM_TTL_MS = 3 * 60 * 1000
+
+function cleanupOldStreams() {
+  const now = Date.now()
+  for (const [id, stream] of detachedStreams) {
+    if (stream.doneAt && now - stream.doneAt > STREAM_TTL_MS) {
+      clearInterval(stream.heartbeatTimer)
+      detachedStreams.delete(id)
+    }
+  }
+}
+
+// 定期クリーンアップ（アイドル時もメモリ回収）
+setInterval(cleanupOldStreams, 60_000)
+
 // ── 中断管理 ─────────────────────────────────────────
 
-const activeStreams = new Map<string, AbortController>()
-
 export function abortStream(streamId: string): boolean {
-  const controller = activeStreams.get(streamId)
-  if (controller) {
-    controller.abort()
-    activeStreams.delete(streamId)
+  const stream = detachedStreams.get(streamId)
+  if (stream) {
+    stream.abortController.abort()
+    clearInterval(stream.heartbeatTimer)
+    stream.status = 'error'
+    stream.doneAt = Date.now()
+    // ブロック中のreaderを即座に起こす（SDKループの検知を待たない）
+    stream.buffer.push({ type: 'error', message: 'Aborted by user' })
+    stream.buffer.push(null)
+    cleanupStreamRequests(streamId)
     return true
   }
   return false
 }
 
 export function getActiveStreamIds(): string[] {
-  return Array.from(activeStreams.keys())
+  return Array.from(detachedStreams.entries())
+    .filter(([, s]) => s.status === 'active')
+    .map(([id]) => id)
 }
 
-// ── メインストリーム ─────────────────────────────────
+// ── ストリームステータス ──────────────────────────────
 
-export async function* createChatStream(params: ChatParams): AsyncGenerator<ChatEvent> {
+export interface StreamStatusInfo {
+  status: 'active' | 'done' | 'error'
+  lastEventIndex: number
+  sessionId: string
+}
+
+export function getStreamStatus(streamId: string): StreamStatusInfo | null {
+  const stream = detachedStreams.get(streamId)
+  if (!stream) return null
+  return {
+    status: stream.status,
+    lastEventIndex: stream.buffer.length - 1,
+    sessionId: stream.sessionId,
+  }
+}
+
+// ── メインストリーム（Detached） ─────────────────────
+
+const HEARTBEAT_INTERVAL_MS = 15_000
+
+/**
+ * SDKストリームを開始し、streamId を返す。
+ * HTTP接続とSDK処理のライフサイクルを分離:
+ * - HTTP接続が切れてもSDK処理は継続
+ * - イベントはbufferに蓄積され、readStream() で任意位置から読める
+ */
+export async function startStream(params: ChatParams): Promise<string> {
+  cleanupOldStreams()
+
   const sdk = await loadSdk()
-  const options = buildQueryOptions(params)
   const abortController = new AbortController()
   const streamId = `stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  activeStreams.set(streamId, abortController)
+  const buffer = new StreamBuffer()
 
-  // AbortSignal を options に追加
+  const mode = params.permissionMode || 'plan'
+  const needsCanUseTool = mode !== 'yolo'
+
+  // canUseTool コールバック（yolo以外で注入）
+  const canUseTool: CanUseTool | undefined = needsCanUseTool
+    ? async (toolName, input, opts) => {
+      const typedOpts = opts as { signal?: AbortSignal; decisionReason?: string }
+      log.info(`[canUseTool] called: tool=${toolName} mode=${mode} reason=${typedOpts.decisionReason || '(none)'}`)
+      const signal = typedOpts.signal
+      const decisionReason = typedOpts.decisionReason
+
+      if (toolName === 'AskUserQuestion') {
+        const questions = ((input as { questions?: AskQuestionItem[] }).questions || []).map(q => ({
+          question: q.question,
+          header: q.header,
+          options: q.options || [],
+          multiSelect: !!q.multiSelect,
+        }))
+        const { requestId, promise } = createPendingRequest(streamId, toolName, input, signal)
+        buffer.push({ type: 'ask-question', requestId, questions })
+        return promise
+      }
+
+      // その他のツール承認
+      const description = (input as { description?: string }).description
+      const { requestId, promise } = createPendingRequest(streamId, toolName, input, signal)
+      buffer.push({ type: 'tool-approval', requestId, toolName, input, description, decisionReason })
+      return promise
+    }
+    : undefined
+
+  const options = buildQueryOptions(params, canUseTool)
   options.abortController = abortController
 
   const imgCount = params.images?.length || 0
-  log.info(`Chat request [${streamId}]: "${params.message.slice(0, 60)}..." cwd=${params.cwd} model=${params.model} images=${imgCount}`)
+  log.info(`Chat request [${streamId}]: "${params.message.slice(0, 60)}..." cwd=${params.cwd} model=${params.model} mode=${mode} images=${imgCount}`)
 
-  // streamId を最初に通知
-  yield { type: 'stream-start', streamId } as ChatEvent
+  // streamId を最初のイベントとして蓄積
+  buffer.push({ type: 'stream-start', streamId })
 
   // 画像がある場合はコンテンツブロック配列で送信（Agent SDK のマルチモーダル対応）
   let prompt: string | AsyncIterable<unknown>
@@ -295,24 +453,68 @@ export async function* createChatStream(params: ChatParams): AsyncGenerator<Chat
     prompt = params.message
   }
 
-  const queryStream = sdk.query({ prompt, options })
   let sessionId = params.sessionId || ''
 
-  try {
-    for await (const msg of queryStream) {
-      if (abortController.signal.aborted) {
-        yield { type: 'error', message: 'Aborted by user' }
-        break
-      }
-      const events = parseSdkMessage(msg, sessionId)
-      for (const event of events) {
-        if (event.type === 'session') {
-          sessionId = event.sessionId
-        }
-        yield event
-      }
-    }
-  } finally {
-    activeStreams.delete(streamId)
+  // Heartbeat タイマー
+  const heartbeatTimer = setInterval(() => {
+    buffer.push({ type: 'heartbeat' })
+  }, HEARTBEAT_INTERVAL_MS)
+
+  // DetachedStream 登録
+  const detached: DetachedStream = {
+    buffer,
+    abortController,
+    heartbeatTimer,
+    status: 'active',
+    sessionId,
+    createdAt: Date.now(),
   }
+  detachedStreams.set(streamId, detached)
+
+  // SDKストリーム消費を背景タスクで実行 → buffer に push
+  const queryStream = sdk.query({ prompt, options })
+  ;(async () => {
+    try {
+      for await (const msg of queryStream) {
+        if (abortController.signal.aborted) {
+          // abortStream() が既に error+null を push 済み → ここでは push しない
+          break
+        }
+        const events = parseSdkMessage(msg, sessionId)
+        for (const event of events) {
+          if (event.type === 'session') {
+            sessionId = event.sessionId
+            detached.sessionId = sessionId
+          }
+          buffer.push(event)
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error(`SDK stream error [${streamId}]: ${message}`)
+      buffer.push({ type: 'error', message })
+      detached.status = 'error'
+    }
+    // ストリーム終了（abortStream() で既に処理済みの場合はスキップ）
+    clearInterval(heartbeatTimer)
+    if (detached.status === 'active') {
+      detached.status = 'done'
+      detached.doneAt = Date.now()
+      buffer.push(null)
+      cleanupStreamRequests(streamId)
+    }
+  })()
+
+  return streamId
+}
+
+/**
+ * バッファからイベントを読む AsyncGenerator。
+ * fromIndex を指定すれば途中から読める（リコネクト対応）。
+ */
+export async function* readStream(streamId: string, fromIndex = 0): AsyncGenerator<{ event: ChatEvent; index: number }> {
+  const stream = detachedStreams.get(streamId)
+  if (!stream) return
+
+  yield* stream.buffer.read(fromIndex)
 }
