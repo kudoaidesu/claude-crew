@@ -166,6 +166,13 @@ pre:hover .code-copy-btn{opacity:1}
 .tool-detail-body{display:none;padding:10px 12px;background:var(--bg);border-top:1px solid var(--border);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.4;font-size:12px}
 .tool-detail-body.open{display:block}
 
+/* ── Dev Server URL Open ── */
+.dev-url-bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.dev-url-btn{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-family:var(--font-mono);font-weight:600;cursor:pointer;min-height:44px;-webkit-tap-highlight-color:transparent;transition:opacity .1s}
+.dev-url-btn:hover{opacity:.85}
+.dev-url-btn:active{opacity:.7;transform:scale(.97)}
+.dev-url-btn .port-label{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700}
+
 /* diff */
 .diff-line{padding:1px 6px;font-family:var(--font-mono);font-size:12px}
 .diff-add{background:var(--diff-add);color:var(--diff-add-text)}
@@ -233,6 +240,11 @@ pre:hover .code-copy-btn{opacity:1}
 .typing-dots span:nth-child(2){animation-delay:.2s}
 .typing-dots span:nth-child(3){animation-delay:.4s}
 @keyframes bounce{to{opacity:.3;transform:translateY(-4px)}}
+.reconnecting{display:flex;align-items:center;gap:6px;padding:6px 10px;margin:4px 0;border-radius:8px;background:var(--warning-bg, rgba(255,165,0,.1));color:var(--warning, #e08700);font-size:12px}
+.reconnecting .reconnect-dots{display:flex;gap:2px}
+.reconnecting .reconnect-dots span{width:5px;height:5px;background:currentColor;border-radius:50%;animation:bounce .6s infinite alternate;opacity:1}
+.reconnecting .reconnect-dots span:nth-child(2){animation-delay:.2s}
+.reconnecting .reconnect-dots span:nth-child(3){animation-delay:.4s}
 
 /* ── ドロワー ── */
 .drawer{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:10;display:none;backdrop-filter:blur(2px)}
@@ -357,15 +369,57 @@ pre:hover .code-copy-btn{opacity:1}
 .cmd-item .cmd-desc{color:var(--muted);font-size:12px;margin-left:auto}
 
 /* ── ツール承認UI (モバイル) ── */
-.tool-approve{margin:4px 0;border:1px solid var(--warning);border-radius:8px;overflow:hidden;background:var(--warning-bg);font-size:12px}
-.tool-approve-header{display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--warning)}
+.tool-approve{margin:4px 0;border:1px solid var(--accent-border);border-radius:8px;overflow:hidden;background:var(--accent-dim);font-size:12px;transition:all .3s ease}
+.tool-approve-header{display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--accent)}
 .tool-approve-header svg.ic{font-size:15px;flex-shrink:0}
 .tool-approve-header .tool-approve-name{font-weight:700}
-.tool-approve-body{padding:8px 12px;background:var(--bg);border-top:1px solid rgba(249,226,175,.15);font-size:12px;color:var(--text);max-height:150px;overflow:auto;white-space:pre-wrap;word-break:break-all}
-.tool-approve-actions{display:flex;gap:8px;padding:8px 12px;border-top:1px solid rgba(249,226,175,.15)}
+.tool-approve-question{padding:4px 12px 6px;color:var(--text-bright);font-size:13px;font-weight:500;line-height:1.5}
+.tool-approve-detail-toggle{padding:0 12px 6px;color:var(--muted);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
+.tool-approve-detail-toggle:active{opacity:.7}
+.tool-approve-body{max-height:0;overflow:hidden;background:var(--bg);border-top:1px solid rgba(192,132,252,.15);font-size:12px;color:var(--text);word-break:break-all;transition:max-height .2s ease}
+.tool-approve-body.open{max-height:300px;overflow:auto;padding:8px 12px}
+.tool-approve-body .md-content{white-space:normal}
+.tool-approve-body .md-content h1,.tool-approve-body .md-content h2,.tool-approve-body .md-content h3{font-size:13px;margin:8px 0 4px;color:var(--text-bright)}
+.tool-approve-body .md-content p{margin:4px 0}
+.tool-approve-body .md-content ul,.tool-approve-body .md-content ol{margin:4px 0;padding-left:18px}
+.tool-approve-body .md-content code{font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px}
+.tool-approve-body .md-content pre{margin:4px 0;padding:6px;background:var(--surface);border-radius:4px;overflow-x:auto}
+.tool-approve-body .md-content pre code{background:none;padding:0}
+.tool-approve-actions{display:flex;gap:8px;padding:8px 12px;border-top:1px solid rgba(192,132,252,.15)}
 .tool-approve-actions button{flex:1;padding:8px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
-.tool-approve-actions .btn-allow{background:var(--success);color:var(--bg)}
+.tool-approve-actions .btn-allow{background:var(--accent);color:var(--bg)}
 .tool-approve-actions .btn-deny{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(243,139,168,.3)}
+.tool-approve-summary{padding:0 12px 6px;color:var(--text);font-size:12px}
+.tool-approve-summary ul{margin:2px 0;padding-left:18px;list-style:disc}
+.tool-approve-summary li{margin:1px 0;line-height:1.4}
+.tool-approve-summary code{font-size:11px;font-family:var(--font-mono);background:var(--surface);padding:1px 4px;border-radius:3px}
+.tool-approve.resolved{border-color:var(--border);background:var(--surface)}
+.tool-approve.resolved .tool-approve-header{padding:6px 12px}
+.tool-approve.resolved .tool-approve-question,
+.tool-approve.resolved .tool-approve-detail-toggle,
+.tool-approve.resolved .tool-approve-body,
+.tool-approve.resolved .tool-approve-actions{display:none}
+
+/* ── AskUserQuestion UI ── */
+.ask-question{margin:4px 0;border:1px solid var(--accent-border);border-radius:8px;overflow:hidden;background:var(--accent-dim);font-size:12px}
+.ask-question-header{display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--accent);font-weight:700}
+.ask-question-header svg.ic{font-size:15px;flex-shrink:0}
+.ask-question-body{padding:8px 12px}
+.ask-question-q{margin-bottom:10px}
+.ask-question-q .q-chip{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;background:var(--accent);color:var(--bg);margin-bottom:4px}
+.ask-question-q .q-text{color:var(--text-bright);font-weight:600;margin-bottom:6px;font-size:13px}
+.ask-option{display:block;width:100%;text-align:left;padding:8px 10px;margin:3px 0;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;transition:all .15s}
+.ask-option:hover{border-color:var(--accent);background:var(--accent-dim)}
+.ask-option.selected{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 0 2px var(--accent-border)}
+.ask-option .opt-label{font-weight:600;color:var(--text-bright)}
+.ask-option .opt-desc{font-size:11px;color:var(--muted);margin-top:2px}
+.ask-other-input{display:none;width:100%;margin:4px 0;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;resize:none}
+.ask-other-input:focus{border-color:var(--accent);outline:none}
+.ask-submit{margin-top:8px;padding:8px 16px;background:var(--accent);color:var(--bg);border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px}
+.ask-submit:disabled{opacity:.4;cursor:not-allowed}
+.ask-question.answered{border-color:var(--border);background:var(--surface);transition:all .3s ease}
+.ask-question.answered .ask-question-body{display:none}
+.ask-question.answered .ask-question-header{padding:6px 12px}
 
 /* ── ライトテーマ (Catppuccin Latte) ── */
 [data-theme="light"]{
@@ -385,8 +439,8 @@ pre:hover .code-copy-btn{opacity:1}
 [data-theme="light"] .tap-overlay{background:rgba(0,0,0,.2)}
 [data-theme="light"] .drawer-content{box-shadow:-4px 0 24px rgba(0,0,0,.1)}
 [data-theme="light"] .cmd-menu{box-shadow:0 -4px 16px rgba(0,0,0,.08)}
-[data-theme="light"] .tool-approve-body{border-top-color:rgba(223,142,29,.15)}
-[data-theme="light"] .tool-approve-actions{border-top-color:rgba(223,142,29,.15)}
+[data-theme="light"] .tool-approve-body{border-top-color:rgba(136,57,239,.15)}
+[data-theme="light"] .tool-approve-actions{border-top-color:rgba(136,57,239,.15)}
 </style>
 </head>
 <body>
@@ -955,7 +1009,22 @@ function flushPendingAfterCompact(tabId) {
 
 function pollCompactStatus(sessionId) {
   if (compactPollTimer) clearInterval(compactPollTimer)
+  const compactStartTime = Date.now()
+  const COMPACT_TIMEOUT_MS = 5 * 60 * 1000 // 5分
+  const capturedTabId = activeTabId // タブ切替に備えてキャプチャ
   compactPollTimer = setInterval(() => {
+    // タイムアウト: 5分経過で強制終了
+    if (Date.now() - compactStartTime > COMPACT_TIMEOUT_MS) {
+      clearInterval(compactPollTimer)
+      compactPollTimer = null
+      const tab = tabs.get(capturedTabId)
+      if (tab) { tab.compacting = false; showCompacting(false) }
+      const pill = document.getElementById('tokenPill')
+      pill.classList.remove('compact-running')
+      showToast('<p>Compact timed out (5min)</p>', 4000)
+      updateTokenUsage(lastInputTokens, lastContextWindow)
+      return
+    }
     fetch(`/api/chat/compact-status/${encodeURIComponent(sessionId)}`)
       .then(r => r.json())
       .then(job => {
@@ -968,8 +1037,7 @@ function pollCompactStatus(sessionId) {
           lastInputTokens = 0
           pill.innerHTML = `${ic('cpu', 12)} ${t('compacted')}`
           setTimeout(() => { if (!lastInputTokens) pill.style.display = 'none' }, 5000)
-          // キューされたメッセージを自動送信
-          flushPendingAfterCompact(activeTabId)
+          flushPendingAfterCompact(capturedTabId)
         } else if (job.status === 'error') {
           clearInterval(compactPollTimer)
           compactPollTimer = null
@@ -977,8 +1045,7 @@ function pollCompactStatus(sessionId) {
           pill.classList.remove('compact-running')
           showToast(`<p>Compact error: ${job.error || 'unknown'}</p>`, 4000)
           updateTokenUsage(lastInputTokens, lastContextWindow)
-          // エラー時はメッセージを入力欄に戻す
-          const tab = tabs.get(activeTabId)
+          const tab = tabs.get(capturedTabId)
           if (tab) {
             tab.compacting = false
             showCompacting(false)
@@ -2151,6 +2218,101 @@ async function sendMessage() {
   let resolveSending
   tab.sendingPromise = new Promise(r => { resolveSending = r })
 
+  const HEARTBEAT_TIMEOUT_MS = 30000
+  const MAX_RECONNECT_RETRIES = 5
+
+  function readWithTimeout(reader, ms) {
+    let timer
+    return Promise.race([
+      reader.read().then(
+        r => { clearTimeout(timer); return r },
+        e => { clearTimeout(timer); throw e },
+      ),
+      new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('__STREAM_TIMEOUT__')), ms) }),
+    ])
+  }
+
+  function parseSSEBlocks(raw, tabId, content, assistantEl, tab) {
+    const blocks = raw.split('\n\n')
+    const remaining = blocks.pop() || ''
+    for (const block of blocks) {
+      if (!block.trim()) continue
+      let eventName = 'message'
+      let eventId = null
+      const dataLines = []
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) eventName = line.slice(6).trim()
+        else if (line.startsWith('id:')) eventId = line.slice(3).trim()
+        else if (line.startsWith('data:')) {
+          dataLines.push(line.charAt(5) === ' ' ? line.slice(6) : line.slice(5))
+        }
+      }
+      if (eventId !== null) tab._lastEventIndex = parseInt(eventId, 10)
+      const data = dataLines.join('\n')
+      if (data || eventName === 'heartbeat') handleSSE(tabId, eventName, data, content, assistantEl)
+    }
+    return remaining
+  }
+
+  async function sseReadLoop(reader, tabId, content, assistantEl, tab) {
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await readWithTimeout(reader, HEARTBEAT_TIMEOUT_MS)
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      buffer = parseSSEBlocks(buffer, tabId, content, assistantEl, tab)
+    }
+  }
+
+  async function tryReconnect(tab, tabId, content, reconnectCount) {
+    if (!tab.streamId || reconnectCount >= MAX_RECONNECT_RETRIES) return false
+    showReconnecting(content)
+    const MAX_INNER_RETRIES = 3
+    for (let i = 0; i < MAX_INNER_RETRIES; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, i), 10000)))
+      try {
+        const statusRes = await fetch(`/api/chat/stream-status/${tab.streamId}`)
+        if (!statusRes.ok) { hideReconnecting(content); return false }
+        const status = await statusRes.json()
+        if (status.status === 'done' || status.status === 'error') {
+          hideReconnecting(content)
+          return false
+        }
+        // ストリームはまだ active → reconnect（abort signal 付き）
+        const reconRes = await fetch('/api/chat/reconnect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ streamId: tab.streamId, lastEventIndex: tab._lastEventIndex ?? -1 }),
+          signal: fetchController.signal,
+        })
+        if (!reconRes.ok) continue
+        hideReconnecting(content)
+        return reconRes
+      } catch (e) {
+        if (e.name === 'AbortError') { hideReconnecting(content); throw e }
+        /* other errors → retry */
+      }
+    }
+    hideReconnecting(content)
+    return false
+  }
+
+  function showReconnecting(content) {
+    if (content.querySelector('.reconnecting')) return
+    const typing = content.querySelector('.typing')
+    if (typing) typing.remove()
+    const el = document.createElement('div')
+    el.className = 'reconnecting'
+    el.innerHTML = `<div class="reconnect-dots"><span></span><span></span><span></span></div> Reconnecting...`
+    content.appendChild(el)
+    scrollToBottom(tabId)
+  }
+  function hideReconnecting(content) {
+    const el = content.querySelector('.reconnecting')
+    if (el) el.remove()
+  }
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -2166,35 +2328,44 @@ async function sendMessage() {
       signal: fetchController.signal,
     })
 
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
+    tab._lastEventIndex = -1
+    let currentRes = res
+    let reconnectCount = 0
 
     while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const blocks = buffer.split('\n\n')
-      buffer = blocks.pop() || ''
-
-      for (const block of blocks) {
-        if (!block.trim()) continue
-        let eventName = 'message'
-        const dataLines = []
-        for (const line of block.split('\n')) {
-          if (line.startsWith('event:')) eventName = line.slice(6).trim()
-          else if (line.startsWith('data:')) {
-            dataLines.push(line.charAt(5) === ' ' ? line.slice(6) : line.slice(5))
+      const reader = currentRes.body.getReader()
+      try {
+        await sseReadLoop(reader, tabId, content, assistantEl, tab)
+        break // 正常完了
+      } catch (e) {
+        if (e.message === '__STREAM_TIMEOUT__') {
+          try { reader.cancel() } catch {}
+          const reconRes = await tryReconnect(tab, tabId, content, reconnectCount)
+          if (reconRes && reconRes.body) {
+            reconnectCount++
+            currentRes = reconRes
+            continue // 新しいreaderでループ継続
           }
+          // リコネクト不能 → ストリームの状態を確認して表示
+          try {
+            const sr = await fetch(`/api/chat/stream-status/${tab.streamId}`)
+            if (sr.ok) {
+              const st = await sr.json()
+              if (st.status === 'done') break // 正常完了していた
+              if (st.status === 'error') {
+                content.innerHTML += `<span style="color:var(--danger)">Stream error</span>`
+                break
+              }
+            }
+          } catch {}
+          content.innerHTML += `<span style="color:var(--danger)">Connection lost</span>`
+          break
         }
-        const data = dataLines.join('\n')
-        if (data) handleSSE(tabId, eventName, data, content, assistantEl)
+        throw e // AbortError等はそのままthrow
       }
     }
   } catch (e) {
     if (e.name === 'AbortError') {
-      // 割り込み中断: タイピングドットを削除、コンテンツが空なら要素ごと削除
       const typing = content.querySelector('.typing')
       if (typing) typing.remove()
       if (!content.querySelector('.text-segment') && !content.querySelector('.tool-detail') && !content.querySelector('.warning-badge')) {
@@ -2209,6 +2380,7 @@ async function sendMessage() {
   tab.sending = false
   tab.streamId = null
   tab.fetchController = null
+  tab._lastEventIndex = undefined
   resolveSending()
   if (activeTabId === tabId) updateStreamingUI(false)
   renderTabs()
@@ -2240,6 +2412,9 @@ function collectSegmentTexts(content, tab) {
 function handleSSE(tabId, event, data, content, msgEl) {
   const tab = tabs.get(tabId)
   if (!tab) return
+
+  // heartbeat: UIアクションなし（readWithTimeoutのタイムアウトリセットのみ）
+  if (event === 'heartbeat') return
 
   if (event === 'text') {
     const typing = content.querySelector('.typing')
@@ -2364,6 +2539,213 @@ function handleSSE(tabId, event, data, content, msgEl) {
       updateTokenUsage(t.inputTokens, t.contextWindow)
     } catch {}
   }
+
+  if (event === 'ask-question') {
+    try {
+      const d = JSON.parse(data)
+      const panel = createAskQuestionPanel(d.requestId, d.questions)
+      content.appendChild(panel)
+      scrollToBottom(tabId)
+    } catch {}
+  }
+
+  if (event === 'tool-approval') {
+    try {
+      const d = JSON.parse(data)
+      const panel = createToolApprovalPanel(d.requestId, d.toolName, d.input, d.description, d.decisionReason)
+      content.appendChild(panel)
+      scrollToBottom(tabId)
+    } catch {}
+  }
+}
+
+// --- AskUserQuestion パネル ---
+function createAskQuestionPanel(requestId, questions) {
+  const panel = document.createElement('div')
+  panel.className = 'ask-question'
+  panel.setAttribute('data-request-id', requestId)
+
+  const selections = {}
+
+  let html = `<div class="ask-question-header">${ic('help-circle', 15)} Claude is asking...</div>`
+  html += `<div class="ask-question-body">`
+
+  for (const q of questions) {
+    html += `<div class="ask-question-q">`
+    html += `<span class="q-chip">${esc(q.header)}</span>`
+    html += `<div class="q-text">${esc(q.question)}</div>`
+    const qKey = q.question.replace(/"/g, '&quot;')
+    for (const opt of (q.options || [])) {
+      html += `<button class="ask-option" data-question="${qKey}" data-label="${esc(opt.label)}">`
+      html += `<span class="opt-label">${esc(opt.label)}</span>`
+      html += `<span class="opt-desc">${esc(opt.description)}</span>`
+      html += `</button>`
+    }
+    html += `<button class="ask-option" data-question="${qKey}" data-label="__other__">`
+    html += `<span class="opt-label">Other...</span>`
+    html += `</button>`
+    html += `<textarea class="ask-other-input" data-question="${qKey}" rows="2" placeholder="Type your answer..."></textarea>`
+    html += `</div>`
+  }
+
+  html += `<button class="ask-submit" disabled>Submit</button>`
+  html += `</div>`
+  panel.innerHTML = html
+
+  function checkAllAnswered() {
+    const allAnswered = questions.every(q => selections[q.question])
+    panel.querySelector('.ask-submit').disabled = !allAnswered
+  }
+
+  panel.querySelectorAll('.ask-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const question = btn.dataset.question
+      const label = btn.dataset.label
+      // deselect siblings
+      panel.querySelectorAll(`.ask-option[data-question="${CSS.escape(question)}"]`)
+        .forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+
+      const otherInput = panel.querySelector(`.ask-other-input[data-question="${CSS.escape(question)}"]`)
+      if (label === '__other__') {
+        if (otherInput) { otherInput.style.display = 'block'; otherInput.focus() }
+        selections[question] = otherInput?.value || ''
+        otherInput?.addEventListener('input', () => { selections[question] = otherInput.value; checkAllAnswered() })
+      } else {
+        if (otherInput) otherInput.style.display = 'none'
+        selections[question] = label
+      }
+      checkAllAnswered()
+    })
+  })
+
+  panel.querySelector('.ask-submit').addEventListener('click', () => {
+    fetch('/api/chat/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, type: 'answer', answers: selections }),
+    })
+    // コンパクト化: 回答サマリー1行に
+    const answerSummary = Object.values(selections).join(', ')
+    panel.classList.add('answered')
+    panel.querySelector('.ask-question-header').innerHTML =
+      `<span style="color:var(--success)">${ic('check', 12)}</span> <span style="color:var(--muted);font-size:11px">${esc(answerSummary).slice(0, 60)}</span>`
+  })
+
+  return panel
+}
+
+// --- ツール承認パネル ---
+function getToolApprovalQuestion(toolName, input) {
+  const inp = input || {}
+  switch (toolName) {
+    case 'Bash': return `\`${(inp.command || '').slice(0, 60)}\` を実行しますか？`
+    case 'Edit': return `${inp.file_path || 'ファイル'} を編集しますか？`
+    case 'Write': return `${inp.file_path || 'ファイル'} を作成しますか？`
+    case 'ExitPlanMode': return 'このプランを承認しますか？'
+    case 'EnterPlanMode': return 'プランモードに入りますか？'
+    case 'Bash(dangerous)': return `危険なコマンドを実行しますか？`
+    case 'TodoWrite': return 'タスクリストを更新しますか？'
+    case 'NotebookEdit': return `${inp.notebook_path || 'ノートブック'} を編集しますか？`
+    default: return `${toolName} を実行しますか？`
+  }
+}
+
+function getApprovalSummaryHtml(toolName, input) {
+  const inp = input || {}
+  if (toolName === 'ExitPlanMode' && inp.plan) {
+    let html = ''
+    // ゴール（H1タイトル）
+    const h1 = inp.plan.match(/^# (.+)$/m)
+    if (h1) html += `<div style="font-weight:600;color:var(--text-bright);margin-bottom:4px">${esc(h1[1])}</div>`
+    // 作業ステップ（### 見出し）
+    const steps = inp.plan.match(/^### .+$/gm) || []
+    if (steps.length) {
+      html += '<ul>' + steps.map(s => `<li>${esc(s.replace(/^### \d*\.?\s*/, ''))}</li>`).join('') + '</ul>'
+    } else {
+      // ### がなければ ## を使う（Context/検証は除外）
+      const sections = (inp.plan.match(/^## .+$/gm) || [])
+        .map(h => h.replace(/^## /, ''))
+        .filter(h => !/^(Context|検証|Verification)/i.test(h))
+      if (sections.length) {
+        html += '<ul>' + sections.map(s => `<li>${esc(s)}</li>`).join('') + '</ul>'
+      }
+    }
+    // 対象ファイル
+    const files = [...new Set((inp.plan.match(/`(src\/[^`]+)`/g) || []).map(f => f.replace(/`/g, '')))]
+    if (files.length) {
+      html += `<div style="margin-top:4px;color:var(--muted);font-size:11px">`
+      html += files.map(f => `<code>${esc(f)}</code>`).join(' ')
+      html += '</div>'
+    }
+    return html || null
+  }
+  if (toolName === 'Bash') return `<code>${esc((inp.command || '').slice(0, 100))}</code>`
+  if (toolName === 'Edit') return `<code>${esc(inp.file_path || '')}</code>`
+  if (toolName === 'Write') return `<code>${esc(inp.file_path || '')}</code>`
+  return null
+}
+
+function createToolApprovalPanel(requestId, toolName, input, description, decisionReason) {
+  const panel = document.createElement('div')
+  panel.className = 'tool-approve'
+  panel.setAttribute('data-request-id', requestId)
+
+  // decisionReason（SDK提供）優先、なければフォールバック
+  const question = decisionReason || getToolApprovalQuestion(toolName, input)
+  const summaryHtml = getApprovalSummaryHtml(toolName, input)
+  const detail = formatToolInput({ name: toolName, input: input || {} })
+  const hasDetail = detail && detail.trim().length > 0
+
+  panel.innerHTML = `
+    <div class="tool-approve-header">
+      ${ic('shield', 15)}
+      <span class="tool-approve-name">${esc(toolName)}</span>
+    </div>
+    <div class="tool-approve-question">${esc(question)}</div>
+    ${summaryHtml ? `<div class="tool-approve-summary">${summaryHtml}</div>` : ''}
+    ${hasDetail ? `<div class="tool-approve-detail-toggle">${ic('chevron-right', 10)} 詳細を見る</div>` : ''}
+    ${hasDetail ? `<div class="tool-approve-body">${detail}</div>` : ''}
+    <div class="tool-approve-actions">
+      <button class="btn-allow">Allow</button>
+      <button class="btn-deny">Deny</button>
+    </div>
+  `
+
+  // 詳細トグル
+  const toggle = panel.querySelector('.tool-approve-detail-toggle')
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const body = panel.querySelector('.tool-approve-body')
+      body.classList.toggle('open')
+      toggle.innerHTML = body.classList.contains('open')
+        ? `${ic('chevron-down', 10)} 詳細を隠す`
+        : `${ic('chevron-right', 10)} 詳細を見る`
+    })
+  }
+
+  function resolve(approved) {
+    fetch('/api/chat/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, type: 'approval', approved }),
+    })
+    // コンパクト化: 1行表示に変化
+    panel.classList.add('resolved')
+    const statusColor = approved ? 'var(--success)' : 'var(--danger)'
+    const statusIcon = approved ? ic('check', 12) : ic('x', 12)
+    const statusText = approved ? 'Allowed' : 'Denied'
+    panel.querySelector('.tool-approve-header').innerHTML = `
+      <span style="color:${statusColor}">${statusIcon}</span>
+      <span class="tool-approve-name">${esc(toolName)}</span>
+      <span style="flex:1;font-size:11px;color:${statusColor}">${statusText}</span>
+    `
+  }
+
+  panel.querySelector('.btn-allow').addEventListener('click', () => resolve(true))
+  panel.querySelector('.btn-deny').addEventListener('click', () => resolve(false))
+
+  return panel
 }
 
 // --- ツール詳細パネル ---
@@ -2415,6 +2797,9 @@ function formatToolInput(detail) {
   if (detail.name === 'Write') {
     const content = inp.content || ''
     return `<div class="diff-add" style="max-height:200px;overflow:auto;padding:4px 6px">${esc(content)}</div>`
+  }
+  if (detail.name === 'ExitPlanMode' && inp.plan) {
+    return `<div class="md-content">${marked.parse(inp.plan)}</div>`
   }
   return `<div>${esc(JSON.stringify(inp, null, 2))}</div>`
 }

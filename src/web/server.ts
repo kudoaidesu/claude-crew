@@ -483,6 +483,7 @@ app.route('/api/observe', observerRoutes)
 app.get('/observer', (c) => {
   try {
     const html = readFileSync(resolve(process.cwd(), 'src/web/public/observer.html'), 'utf-8')
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
     return c.html(html)
   } catch {
     return c.text('observer.html not found', 404)
@@ -493,6 +494,7 @@ app.get('/observer', (c) => {
 app.get('*', (c) => {
   try {
     const html = readFileSync(resolve(process.cwd(), 'src/web/public/index.html'), 'utf-8')
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
     return c.html(html)
   } catch {
     return c.text('index.html not found', 404)
@@ -502,10 +504,15 @@ app.get('*', (c) => {
 // --- サーバー起動 ---
 log.info(`Starting web server on ${HOST}:${PORT} (Tailscale only)`)
 
-serve({
+const server = serve({
   fetch: app.fetch,
   hostname: HOST,
   port: PORT,
 })
+
+// SSEストリーミングは長時間接続 — Node.jsデフォルトタイムアウト(120s)を無効化
+const httpServer = server as unknown as { timeout: number; keepAliveTimeout: number }
+httpServer.timeout = 0
+httpServer.keepAliveTimeout = 0
 
 log.info(`Web server running: http://${HOST}:${PORT}`)
