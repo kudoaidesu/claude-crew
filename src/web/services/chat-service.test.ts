@@ -24,9 +24,9 @@ describe('chat-service', () => {
       expect(opts.allowDangerouslySkipPermissions).toBe(false)
     })
 
-    it('permissionMode=default で bypassPermissions になる', () => {
+    it('permissionMode=default で SDK default になる（承認UI対応）', () => {
       const opts = buildQueryOptions({ ...baseParams, permissionMode: 'default' })
-      expect(opts.permissionMode).toBe('bypassPermissions')
+      expect(opts.permissionMode).toBe('default')
       expect(opts.allowDangerouslySkipPermissions).toBe(false)
     })
 
@@ -65,6 +65,17 @@ describe('chat-service', () => {
     it('includePartialMessages が有効である', () => {
       const opts = buildQueryOptions(baseParams)
       expect(opts.includePartialMessages).toBe(true)
+    })
+
+    it('canUseTool コールバックが渡された場合 options に注入される', () => {
+      const mockCanUseTool = async () => ({ behavior: 'allow' as const })
+      const opts = buildQueryOptions(baseParams, mockCanUseTool)
+      expect(opts.canUseTool).toBe(mockCanUseTool)
+    })
+
+    it('canUseTool が undefined の場合 options に含まれない', () => {
+      const opts = buildQueryOptions(baseParams)
+      expect(opts.canUseTool).toBeUndefined()
     })
   })
 
@@ -372,9 +383,9 @@ describe('chat-service', () => {
       expect(opts.allowDangerouslySkipPermissions).toBe(false)
     })
 
-    it('permissionMode "default" → bypassPermissions モード（dangerouslySkip なし）', () => {
+    it('permissionMode "default" → SDK default モード（承認UI対応）', () => {
       const opts = buildQueryOptions({ message: 'hello', cwd: '/tmp', model: 'sonnet', permissionMode: 'default' })
-      expect(opts.permissionMode).toBe('bypassPermissions')
+      expect(opts.permissionMode).toBe('default')
       expect(opts.allowDangerouslySkipPermissions).toBe(false)
     })
 
