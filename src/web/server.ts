@@ -18,6 +18,8 @@ import { isTailscaleIp, isProjectPathAllowed } from './path-guard.js'
 import { chatRoutes } from './routes/chat.js'
 import { observerRoutes } from './routes/observer.js'
 import { createLogger } from '../utils/logger.js'
+import { getStrategyStats, getRecentEvaluations } from '../utils/cost-tracker.js'
+import { listIssues, createIssue } from '../github/issues.js'
 
 const log = createLogger('web:server')
 
@@ -152,9 +154,17 @@ app.use('/static/*', serveStatic({ root: resolve(process.cwd(), 'src/web/public'
 // チャット（SSEストリーミング）
 app.route('/api/chat', chatRoutes)
 
-// プロジェクト一覧（手動 + 自動スキャン）
+// プロジェクト一覧（手動 + 自動スキャン + フロントデスク）
 app.get('/api/projects', (c) => {
-  return c.json(getProjects())
+  const projects = getProjects()
+  // フロントデスクエントリを先頭に追加
+  const frontDesk: ProjectEntry = {
+    slug: 'front-desk',
+    repo: '',
+    localPath: '__front-desk__',
+    source: 'manual',
+  }
+  return c.json([frontDesk, ...projects])
 })
 
 // プロジェクト追加（projects.json に永続化）
@@ -217,9 +227,54 @@ app.delete('/api/projects', async (c) => {
   return c.json(getProjects())
 })
 
-// ヘルスチェック
+// Issue一覧（担当者情報付き）
+app.get('/api/issues', async (c) => {
+  const slug = c.req.query('project')
+  const state = (c.req.query('state') || 'open') as 'open' | 'closed' | 'all'
+  const projects = getProjects()
+  const project = slug ? projects.find((p) => p.slug === slug) : projects[0]
+  const repo = project?.repo || undefined
+  try {
+    const issues = await listIssues(repo, state)
+    return c.json(issues)
+  } catch (e) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
+// Issue作成
+app.post('/api/issues', async (c) => {
+  const body = await c.req.json<{ title: string; body: string; labels?: string[]; project?: string }>()
+  if (!body.title) return c.json({ error: 'title is required' }, 400)
+  const projects = getProjects()
+  const project = body.project ? projects.find((p) => p.slug === body.project) : projects[0]
+  const repo = project?.repo || undefined
+  try {
+    const issue = await createIssue({ title: body.title, body: body.body || '', labels: body.labels, repo })
+    return c.json(issue)
+  } catch (e) {
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
+// ヘルスチェック（キュー状態を含む）
 app.get('/api/health', (c) => {
-  return c.json({ ok: true, timestamp: Date.now() })
+  let queueDetail = null
+  try {
+    const raw = readFileSync(resolve(process.cwd(), 'data', 'health-status.json'), 'utf-8')
+    queueDetail = JSON.parse(raw)
+  } catch {
+    // health-status.json がまだ存在しない場合は null
+  }
+  return c.json({ ok: true, timestamp: Date.now(), queue: queueDetail })
+})
+
+// Strategy 評価レポート
+app.get('/api/evaluations', (c) => {
+  return c.json({
+    stats: getStrategyStats(),
+    recent: getRecentEvaluations(20),
+  })
 })
 
 // --- ファイルツリー・ソース閲覧 API ---
@@ -480,6 +535,7 @@ app.get('/api/skills', (c) => {
 
 // --- Observer UI ---
 app.route('/api/observe', observerRoutes)
+app.get('/observer.html', (c) => c.redirect('/observer', 301))
 app.get('/observer', (c) => {
   try {
     const html = readFileSync(resolve(process.cwd(), 'src/web/public/observer.html'), 'utf-8')
