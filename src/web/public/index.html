@@ -75,8 +75,7 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .tap-action-btn.danger:hover{background:var(--danger-bg);border-color:rgba(243,139,168,.3)}
 .tab .tab-chevron{color:var(--muted);display:flex;align-items:center;flex-shrink:0;transition:transform .15s}
 .tab .tab-chevron.panel-open{transform:rotate(180deg)}
-.model-select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:var(--font-mono);cursor:pointer;min-width:0;flex-shrink:1;min-height:42px}
-.model-select:focus{outline:none;border-color:var(--accent)}
+.model-select{display:none}
 
 /* ── セッションタブバー ── */
 .tab-bar{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
@@ -217,6 +216,9 @@ pre:hover .code-copy-btn{opacity:1}
 .input-footer button.send-btn:disabled{opacity:.3}
 .input-footer button.abort-btn{display:none;background:var(--danger-bg);color:var(--danger);width:42px;height:42px;border-radius:8px;font-size:18px}
 .input-footer button.abort-btn:hover{background:rgba(243,139,168,.2)}
+.model-chip,.mode-chip{width:auto!important;padding:4px 10px!important;font-size:12px!important;font-family:var(--font-mono);border-radius:12px!important;white-space:nowrap;border:1px solid var(--border)!important}
+.model-chip{background:var(--surface)!important;color:var(--text)!important}
+.mode-chip{background:var(--surface)!important;color:var(--text)!important}
 .attachments{display:none;flex-wrap:wrap;gap:6px;padding:8px 10px 4px}
 .attachments:not(:empty){display:flex}
 .attach-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font-mono);color:var(--text);max-width:200px}
@@ -484,17 +486,9 @@ pre:hover .code-copy-btn{opacity:1}
   <div class="input-box">
     <textarea id="input" rows="1" placeholder="Ask Claude anything..." enterkeyhint="enter" data-i18n-placeholder="chat.placeholder"></textarea>
     <div class="input-footer">
-      <button id="cmdBtn" onclick="toggleCmdMenu()" title="Commands (/)"></button>
       <button id="filesBtn" onclick="document.getElementById('fileInput').click()" title="Upload file"></button>
-      <select id="model" class="model-select" onchange="onModelChange()">
-        <option value="default">default (auto)</option>
-        <option value="claude-sonnet-4-6" selected>claude-sonnet-4-6</option>
-        <option value="claude-opus-4-6">claude-opus-4-6</option>
-        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
-        <option value="sonnet">sonnet (alias)</option>
-        <option value="opus">opus (alias)</option>
-        <option value="haiku">haiku (alias)</option>
-      </select>
+      <button id="modelBtn" class="model-chip" onclick="cycleModel()" title="Model"></button>
+      <button id="modeBtn" class="mode-chip" onclick="cyclePermissionMode()" title="Mode"></button>
       <span style="flex:1"></span>
       <button class="abort-btn" id="abort" onclick="abortCurrentTab()" title="Stop"></button>
       <button class="send-btn" id="send" onclick="sendMessage()" title="Send (Enter)"></button>
@@ -675,7 +669,6 @@ document.getElementById('headerLogo').innerHTML = ic('terminal', 18) + '<span id
 document.getElementById('featuresBtn').innerHTML = ic('grid', 14)
 document.getElementById('settingsBtn').innerHTML = ic('settings', 14)
 document.getElementById('tabAddBtn').innerHTML = ic('plus', 14)
-document.getElementById('cmdBtn').innerHTML = ic('slash', 14)
 document.getElementById('filesBtn').innerHTML = ic('upload', 14)
 document.getElementById('abort').innerHTML = ic('square', 14)
 document.getElementById('send').innerHTML = ic('send', 14)
@@ -723,7 +716,7 @@ function saveTabs() {
     if (currentProject) {
       const projTabs = []
       tabs.forEach((tab, tabId) => {
-        projTabs.push({ tabId, sessionId: tab.sessionId, label: tab.label, permissionMode: tab.permissionMode || 'plan', streamId: tab.streamId || null, lastEventIndex: tab._lastEventIndex ?? -1 })
+        projTabs.push({ tabId, sessionId: tab.sessionId, label: tab.label, permissionMode: tab.permissionMode || 'plan', model: tab.model || 'claude-sonnet-4-6', streamId: tab.streamId || null, lastEventIndex: tab._lastEventIndex ?? -1 })
       })
       store.projects[currentProject] = { activeTabId, tabs: projTabs }
     }
@@ -767,6 +760,7 @@ function restoreProjectTabs(projectPath) {
         fullTexts: new WeakMap(),
         label: cleanLabel(saved.label) || t('chat.newChat'),
         permissionMode: migratePermissionMode(saved.permissionMode || store.permissionMode || 'plan'),
+        model: saved.model || localStorage.getItem(MODEL_STORAGE_KEY) || 'claude-sonnet-4-6',
       })
 
       if (saved.sessionId) {
@@ -999,13 +993,11 @@ function triggerCompact() {
 
   tab.compacting = true
   showCompacting(true)
-
-  const pill = document.getElementById('tokenPill')
   pill.classList.add('compact-running')
   pill.innerHTML = `${ic('zap', 12)} ${t('compacting')}`
 
   const cwd = currentProject || ''
-  const model = document.getElementById('model').value || 'sonnet'
+  const model = tab.model || 'claude-sonnet-4-6'
 
   fetch('/api/chat/compact', {
     method: 'POST',
@@ -1244,30 +1236,54 @@ function exportConversation() {
 }
 
 const MODEL_STORAGE_KEY = 'pocket-cc-model'
+const MODEL_ORDER = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5']
+const MODEL_LABELS = { 'claude-sonnet-4-6': 'Sonnet', 'claude-opus-4-6': 'Opus', 'claude-haiku-4-5': 'Haiku', 'default': 'Auto' }
 
-function onModelChange() {
-  const model = document.getElementById('model').value
-  localStorage.setItem(MODEL_STORAGE_KEY, model)
+function getModelLabel(model) { return MODEL_LABELS[model] || model }
+
+function cycleModel() {
   const tab = tabs.get(activeTabId)
   if (!tab) return
+  const idx = MODEL_ORDER.indexOf(tab.model)
+  const next = MODEL_ORDER[(idx + 1) % MODEL_ORDER.length]
+  tab.model = next
+  localStorage.setItem(MODEL_STORAGE_KEY, next)
+  saveTabs()
+  updateModelChip()
   const el = document.createElement('div')
   el.className = 'msg system-notice'
-  el.innerHTML = `<div class="notice-badge">Model → ${esc(model)}</div>`
+  el.innerHTML = `<div class="notice-badge">Model → ${esc(getModelLabel(next))}</div>`
   tab.messagesEl.appendChild(el)
   scrollToBottom(activeTabId)
 }
 
+function updateModelChip() {
+  const tab = tabs.get(activeTabId)
+  const btn = document.getElementById('modelBtn')
+  if (!btn || !tab) return
+  btn.textContent = getModelLabel(tab.model || 'claude-sonnet-4-6')
+}
+
+function updateModeChip() {
+  const tab = tabs.get(activeTabId)
+  const btn = document.getElementById('modeBtn')
+  if (!btn || !tab) return
+  const mode = tab.permissionMode || 'plan'
+  const labels = { plan: 'Plan', ask: 'Ask', auto: 'Auto', yolo: 'YOLO' }
+  btn.textContent = labels[mode] || mode
+}
+
+function onModelChange() {
+  // Legacy compatibility — now handled by cycleModel
+}
+
 function restoreModel() {
-  const saved = localStorage.getItem(MODEL_STORAGE_KEY)
-  if (!saved) return
-  const sel = document.getElementById('model')
-  const opt = [...sel.options].find(o => o.value === saved)
-  if (opt) sel.value = saved
+  // Model is now per-tab, restored in restoreProjectTabs
 }
 
 function showStatusToast() {
   const tab = tabs.get(activeTabId)
-  const model = document.getElementById('model').value
+  const model = tab?.model || 'claude-sonnet-4-6'
   showToast(`
     <h3>${ic('info', 16)} Status</h3>
     <p>Model: <span class="toast-value">${model}</span></p>
@@ -1411,6 +1427,7 @@ function createNewTab(label) {
     fullTexts: new WeakMap(),
     label: label || t('chat.newChat'),
     permissionMode: 'plan',
+    model: localStorage.getItem(MODEL_STORAGE_KEY) || 'claude-sonnet-4-6',
   })
 
   renderTabs()
@@ -1436,6 +1453,8 @@ function switchTab(tabId) {
   autoResize()
   updateStreamingUI(tab.sending)
   updateInputBoxModeColor()
+  updateModelChip()
+  updateModeChip()
   saveTabs()
   // タブ切替時にコンパクトジョブ状態を確認
   checkCompactJobOnTabSwitch(tab)
@@ -1731,6 +1750,8 @@ function updateInputBoxModeColor() {
   const mode = getActivePermissionMode()
   const cfg = PERM_MODES[mode]
   document.querySelector('.input-box').style.setProperty('--mode-color', cfg.color)
+  updateModeChip()
+  updateModelChip()
 }
 
 function abortCurrentTab() {
@@ -2380,7 +2401,7 @@ async function sendMessage() {
         message: text || '(添付ファイルを確認してください)',
         project: currentProject,
         sessionId: tab.sessionId,
-        model: document.getElementById('model').value,
+        model: tab.model || 'claude-sonnet-4-6',
         permissionMode: tab.permissionMode || 'plan',
         images: fileImages.length > 0 ? fileImages : undefined,
       }),
