@@ -535,6 +535,7 @@ app.get('/api/skills', (c) => {
 
 // --- Observer UI ---
 app.route('/api/observe', observerRoutes)
+app.get('/observer.html', (c) => c.redirect('/observer', 301))
 app.get('/observer', (c) => {
   try {
     const html = readFileSync(resolve(process.cwd(), 'src/web/public/observer.html'), 'utf-8')
