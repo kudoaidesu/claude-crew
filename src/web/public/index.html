@@ -2784,6 +2784,13 @@ function createToolApprovalPanel(requestId, toolName, input, description, decisi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId, type: 'approval', approved }),
     })
+    // ExitPlanMode 承認時: plan → ask に自動切替
+    if (approved && toolName === 'ExitPlanMode') {
+      const tab = tabs.get(activeTabId)
+      if (tab && tab.permissionMode === 'plan') {
+        setPermissionMode('ask', false) // 通知付き
+      }
+    }
     // コンパクト化: 1行表示に変化
     panel.classList.add('resolved')
     const statusColor = approved ? 'var(--success)' : 'var(--danger)'
