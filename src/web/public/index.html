@@ -2016,19 +2016,11 @@ function renderSessionList(list, total, append) {
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:4px">
         <span class="preview" style="flex:1">${esc(cleanLabel(s.messagePreview) || 'Untitled')} ${statusLabel}</span>
-        <button class="delete-session" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0" title="Delete">&times;</button>
       </div>
       <div class="session-meta">
         <span>${timeStr}</span>
       </div>
     `
-    el.querySelector('.delete-session').addEventListener('click', async (e) => {
-      e.stopPropagation()
-      try {
-        await fetch('/api/chat/sessions/' + encodeURIComponent(s.sessionId.slice(0, 12)), { method: 'DELETE' })
-        el.remove()
-      } catch { /* ignore */ }
-    })
     el.addEventListener('click', () => { resumeSession(s); closeDrawer() })
     container.appendChild(el)
   })

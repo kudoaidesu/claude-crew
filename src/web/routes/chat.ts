@@ -219,11 +219,24 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
             try {
               const obj = JSON.parse(line)
               if (obj.type === 'user' && obj.message?.content) {
-                const textContent = obj.message.content.find(
-                  (c: { type: string; text?: string }) => c.type === 'text'
-                )
-                if (textContent?.text) {
-                  const cleaned = cleanPreview(textContent.text)
+                let rawText = ''
+                if (typeof obj.message.content === 'string') {
+                  // 会話ログ形式: "User: msg\n\nA: ..." → 最初のユーザー発言を抽出
+                  // "Assistant:" で始まる場合はアシスタント応答なのでスキップ
+                  const content = obj.message.content
+                  if (/^(?:A:|Assistant:)\s/i.test(content)) { /* skip */ }
+                  else {
+                    const m = content.match(/^(?:User:\s*)?(.+?)(?:\n\n(?:A:|Assistant:)|$)/s)
+                    rawText = m ? m[1].trim() : content.split('\n')[0]
+                  }
+                } else if (Array.isArray(obj.message.content)) {
+                  const textContent = obj.message.content.find(
+                    (c: { type: string; text?: string }) => c.type === 'text'
+                  )
+                  rawText = textContent?.text || ''
+                }
+                if (rawText) {
+                  const cleaned = cleanPreview(rawText)
                   if (cleaned) { preview = cleaned; break scanLoop }
                 }
               }
@@ -232,12 +245,15 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
         }
         closeSync(fd)
 
+        // ユーザーメッセージが見つからない空セッションは除外
+        if (!preview) continue
+
         results.push({
           sessionId,
           project: cwd,
           model: '',
           lastUsed: mtime,
-          messagePreview: preview || 'Untitled',
+          messagePreview: preview,
         })
       } catch { /* skip unreadable files */ }
     }
