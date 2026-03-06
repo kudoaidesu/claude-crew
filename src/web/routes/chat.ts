@@ -734,26 +734,26 @@ async function extractSummaryTranscript(filePath: string): Promise<{ transcript:
         if (c.type === 'text' && c.text) {
           const cleaned = c.text.replace(/<(ide_opened_file|ide_selection|system-reminder|user-prompt-submit-hook)[^>]*>[\s\S]*?(<\/\1>|$)/g, '').trim()
           if (cleaned) {
-            lines.push({ role, text: cleaned.slice(0, 500) })
+            lines.push({ role, text: cleaned.slice(0, 200) })
           }
         }
       }
     } catch { /* skip */ }
   }
 
-  // 先頭15 + 末尾15（重複なし）
-  const head = lines.slice(0, 15)
-  const tail = lines.length > 30 ? lines.slice(-15) : lines.slice(15)
+  // 先頭5 + 末尾5（重複なし）— コンパクトにしてLLMが安定した3行要約を出せるように
+  const head = lines.slice(0, 5)
+  const tail = lines.length > 10 ? lines.slice(-5) : lines.slice(5)
   const selected = [...head, ...tail]
 
   let transcript = ''
   for (const m of selected) {
     const prefix = m.role === 'user' ? 'User' : 'Assistant'
     transcript += `${prefix}: ${m.text}\n\n`
-    if (transcript.length > 8000) break
+    if (transcript.length > 3000) break
   }
 
-  return { transcript: transcript.slice(0, 8000), messageCount: lines.length }
+  return { transcript: transcript.slice(0, 3000), messageCount: lines.length }
 }
 
 // GET /api/chat/summary/:sessionId — AI生成セッション要約
