@@ -44,7 +44,7 @@ export function cleanPreview(raw: string): string {
   text = text.replace(/\s+/g, ' ').trim()
   // UUID/ハッシュ値のみ（例: 6e56d8c1-847...）は空にする
   if (/^[0-9a-f-]{8,}$/i.test(text)) return ''
-  return text.slice(0, 100)
+  return text.slice(0, 200)
 }
 
 // アクティブセッション管理（ファイル永続化）
@@ -202,11 +202,13 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
         const fd = openSync(filePath, 'r')
         const decoder = new TextDecoder('utf-8')
         let preview = ''
+        let summary = ''
+        let customTitle = ''
+        let agentName = ''
         let pos = 0
         const fileSize = statSync(filePath).size
         const maxScan = Math.min(fileSize, 256 * 1024) // 最大256KB
         let partial = ''
-        scanLoop:
         while (pos < maxScan) {
           const bytesRead = readSync(fd, buf, 0, chunkSize, pos)
           if (bytesRead === 0) break
@@ -215,29 +217,36 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
           const lines = partial.split('\n')
           partial = lines.pop() || '' // 最後の不完全行を保持
           for (const line of lines) {
-            if (!line.includes('"type":"user"')) continue // 高速フィルタ
             try {
-              const obj = JSON.parse(line)
-              if (obj.type === 'user' && obj.message?.content) {
-                let rawText = ''
-                if (typeof obj.message.content === 'string') {
-                  // 会話ログ形式: "User: msg\n\nA: ..." → 最初のユーザー発言を抽出
-                  // "Assistant:" で始まる場合はアシスタント応答なのでスキップ
-                  const content = obj.message.content
-                  if (/^(?:A:|Assistant:)\s/i.test(content)) { /* skip */ }
-                  else {
-                    const m = content.match(/^(?:User:\s*)?(.+?)(?:\n\n(?:A:|Assistant:)|$)/s)
-                    rawText = m ? m[1].trim() : content.split('\n')[0]
+              // summary/customTitle/agentName を検出
+              if (line.includes('"summary"') || line.includes('"customTitle"') || line.includes('"agentName"')) {
+                const obj = JSON.parse(line)
+                if (obj.summary && typeof obj.summary === 'string') summary = obj.summary
+                if (obj.customTitle && typeof obj.customTitle === 'string') customTitle = obj.customTitle
+                if (obj.agentName && typeof obj.agentName === 'string') agentName = obj.agentName
+              }
+              // firstPrompt 抽出（まだ未取得の場合のみ）
+              if (!preview && line.includes('"type":"user"')) {
+                const obj = JSON.parse(line)
+                if (obj.type === 'user' && obj.message?.content) {
+                  let rawText = ''
+                  if (typeof obj.message.content === 'string') {
+                    const content = obj.message.content
+                    if (/^(?:A:|Assistant:)\s/i.test(content)) { /* skip */ }
+                    else {
+                      const m = content.match(/^(?:User:\s*)?(.+?)(?:\n\n(?:A:|Assistant:)|$)/s)
+                      rawText = m ? m[1].trim() : content.split('\n')[0]
+                    }
+                  } else if (Array.isArray(obj.message.content)) {
+                    const textContent = obj.message.content.find(
+                      (c: { type: string; text?: string }) => c.type === 'text'
+                    )
+                    rawText = textContent?.text || ''
                   }
-                } else if (Array.isArray(obj.message.content)) {
-                  const textContent = obj.message.content.find(
-                    (c: { type: string; text?: string }) => c.type === 'text'
-                  )
-                  rawText = textContent?.text || ''
-                }
-                if (rawText) {
-                  const cleaned = cleanPreview(rawText)
-                  if (cleaned) { preview = cleaned; break scanLoop }
+                  if (rawText) {
+                    const cleaned = cleanPreview(rawText)
+                    if (cleaned) preview = cleaned
+                  }
                 }
               }
             } catch { /* skip malformed lines */ }
@@ -245,15 +254,16 @@ function scanSdkSessions(cwd: string): SessionEntry[] {
         }
         closeSync(fd)
 
-        // ユーザーメッセージが見つからない空セッションは除外
-        if (!preview) continue
+        // VSCode拡張と同じ優先度チェーン: agentName → customTitle → summary → firstPrompt → "Untitled"
+        const displayName = agentName || customTitle || summary || preview
+        if (!displayName) continue
 
         results.push({
           sessionId,
           project: cwd,
           model: '',
           lastUsed: mtime,
-          messagePreview: preview,
+          messagePreview: displayName,
         })
       } catch { /* skip unreadable files */ }
     }
