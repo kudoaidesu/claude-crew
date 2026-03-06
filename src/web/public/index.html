@@ -978,7 +978,7 @@ function showModelDropdown(e) {
       const msgEl = document.createElement('div')
       msgEl.className = 'msg system-notice'
       msgEl.innerHTML = `<div class="notice-badge">Model → ${esc(modelId)}</div>`
-      if (tab) { tab.messagesEl.appendChild(msgEl); scrollToBottom(activeTabId) }
+      if (tab) { tab.messagesEl.appendChild(msgEl); scrollToBottom(activeTabId, false) }
       closeChipDropdown()
     }
     dd.appendChild(el)
@@ -1009,7 +1009,7 @@ function setPermissionMode(mode, silent) {
     el.className = 'msg system-notice'
     el.innerHTML = `<div class="notice-badge">Mode → ${esc(mode)}</div>`
     tab.messagesEl.appendChild(el)
-    scrollToBottom(activeTabId)
+    scrollToBottom(activeTabId, false)
   }
   updateInputBoxModeColor()
   renderTabs()
@@ -1357,7 +1357,7 @@ function cycleModel() {
   el.className = 'msg system-notice'
   el.innerHTML = `<div class="notice-badge">Model → ${esc(getModelLabel(next))}</div>`
   tab.messagesEl.appendChild(el)
-  scrollToBottom(activeTabId)
+  scrollToBottom(activeTabId, false)
 }
 
 function updateModelChip() {
@@ -2904,7 +2904,7 @@ function handleSSE(tabId, event, data, content, msgEl) {
           el.className = 'msg system-notice'
           el.innerHTML = `<div class="notice-badge">Mode → ${esc(mode)}</div>`
           tab.messagesEl.appendChild(el)
-          if (tabId === activeTabId) scrollToBottom(activeTabId)
+          if (tabId === activeTabId) scrollToBottom(activeTabId, false)
         }
         if (tabId === activeTabId) updateInputBoxModeColor()
         renderTabs()
@@ -3414,9 +3414,17 @@ function addMessage(tabId, role, text) {
   return el
 }
 
-function scrollToBottom(tabId) {
+function scrollToBottom(tabId, force = true) {
   const tab = tabs.get(tabId || activeTabId)
-  if (tab) requestAnimationFrame(() => tab.messagesEl.scrollTop = tab.messagesEl.scrollHeight)
+  if (!tab) return
+  const el = tab.messagesEl
+  // スマートスクロール: ユーザーが上方にスクロール中は強制しない
+  const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  if (force || isNearBottom) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
+    })
+  }
 }
 
 function esc(s) {
