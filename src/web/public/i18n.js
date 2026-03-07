@@ -77,10 +77,27 @@
       'cost.topSessions': 'コスト上位セッション',
       'cost.noData': 'コストデータがありません',
 
+      // ── ダッシュボード ──
+      'dash.title': 'ダッシュボード',
+      'dash.health': 'ヘルス',
+      'dash.server': 'サーバー',
+      'dash.queue': 'キュー',
+      'dash.openIssues': 'オープンIssue',
+      'dash.openPRs': 'オープンPR',
+      'dash.noProjects': 'プロジェクトが登録されていません',
+
       // ── 設定パネル ──
       'settings.title': '設定',
       'settings.theme': 'テーマ',
       'settings.language': '言語',
+      'settings.notifications': '通知',
+
+      // ── 通知 ──
+      'notif.enabled': '通知を有効にしました',
+      'notif.denied': '通知の許可が拒否されました',
+      'notif.unsupported': 'このブラウザは通知に対応していません',
+      'notif.sessionDone': 'セッション完了',
+      'notif.error': 'エラー発生',
 
       // ── Chat UI: ファイル添付 ──
       'fileAttachments': '(ファイル添付)',
@@ -152,10 +169,27 @@
       'cost.topSessions': 'Top Sessions by Cost',
       'cost.noData': 'No cost data available',
 
+      // ── Dashboard ──
+      'dash.title': 'Dashboard',
+      'dash.health': 'Health',
+      'dash.server': 'Server',
+      'dash.queue': 'Queue',
+      'dash.openIssues': 'Open Issues',
+      'dash.openPRs': 'Open PRs',
+      'dash.noProjects': 'No projects registered',
+
       // ── Settings Panel ──
       'settings.title': 'Settings',
       'settings.theme': 'Theme',
       'settings.language': 'Language',
+      'settings.notifications': 'Notifications',
+
+      // ── Notifications ──
+      'notif.enabled': 'Notifications enabled',
+      'notif.denied': 'Notification permission denied',
+      'notif.unsupported': 'Notifications not supported',
+      'notif.sessionDone': 'Session complete',
+      'notif.error': 'Error occurred',
 
       // ── Chat UI: Status & Actions ──
       'copy': 'Copy',

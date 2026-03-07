@@ -270,6 +270,49 @@ app.get('/api/health', (c) => {
   return c.json({ ok: true, timestamp: Date.now(), queue: queueDetail })
 })
 
+// --- プロジェクト横断ダッシュボード API ---
+app.get('/api/dashboard', async (c) => {
+  const projects = getProjects().filter(p => p.repo)
+  const result: Array<Record<string, unknown>> = []
+
+  for (const p of projects) {
+    const item: Record<string, unknown> = { slug: p.slug, repo: p.repo, localPath: p.localPath }
+    try {
+      item.branch = gitExec(p.localPath, ['rev-parse', '--abbrev-ref', 'HEAD'])
+      item.lastCommit = gitExec(p.localPath, ['log', '-1', '--format=%h %s', '--date=short'])
+      const status = gitExec(p.localPath, ['status', '--porcelain'])
+      item.dirtyFiles = status ? status.split('\n').length : 0
+    } catch { /* git not available */ }
+    try {
+      const issueJson = execFileSync('gh', [
+        '--repo', p.repo, 'issue', 'list', '--state', 'open', '--limit', '100',
+        '--json', 'number,title,labels,updatedAt',
+      ], { encoding: 'utf-8', timeout: 10000 }).trim()
+      const issues = JSON.parse(issueJson) as Array<{ number: number; title: string; labels: Array<{ name: string }>; updatedAt: string }>
+      item.openIssues = issues.length
+      item.issues = issues.slice(0, 5).map(i => ({ number: i.number, title: i.title, labels: i.labels.map(l => l.name) }))
+    } catch { item.openIssues = 0; item.issues = [] }
+    try {
+      const prJson = execFileSync('gh', [
+        '--repo', p.repo, 'pr', 'list', '--state', 'open', '--limit', '100',
+        '--json', 'number,title,headRefName,isDraft',
+      ], { encoding: 'utf-8', timeout: 10000 }).trim()
+      const prs = JSON.parse(prJson) as Array<{ number: number; title: string; headRefName: string; isDraft: boolean }>
+      item.openPRs = prs.length
+      item.prs = prs.slice(0, 5).map(pr => ({ number: pr.number, title: pr.title, branch: pr.headRefName, isDraft: pr.isDraft }))
+    } catch { item.openPRs = 0; item.prs = [] }
+    result.push(item)
+  }
+
+  let health = null
+  try {
+    const raw = readFileSync(resolve(process.cwd(), 'data', 'health-status.json'), 'utf-8')
+    health = JSON.parse(raw)
+  } catch { /* not available */ }
+
+  return c.json({ projects: result, health, timestamp: Date.now() })
+})
+
 // Strategy 評価レポート
 app.get('/api/evaluations', (c) => {
   return c.json({
