@@ -2322,6 +2322,7 @@ function renderSessionList(list, total, append) {
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:4px">
         <span class="preview" style="flex:1">${esc(cleanLabel(s.messagePreview) || 'Untitled')} ${statusLabel}</span>
+        <button class="session-del-btn" title="Delete" style="background:none;border:none;color:var(--muted);font-size:14px;padding:2px 4px;cursor:pointer;opacity:.4;flex-shrink:0">&times;</button>
       </div>
       <div class="session-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span>${timeStr}</span>
@@ -2329,6 +2330,14 @@ function renderSessionList(list, total, append) {
         <span style="font-size:10px;color:var(--muted);opacity:.6;font-family:monospace">${shortId}</span>
       </div>
     `
+    el.querySelector('.session-del-btn').addEventListener('click', async (e) => {
+      e.stopPropagation()
+      if (!confirm(t('session.deleteConfirm'))) return
+      const params = currentProject ? `?project=${encodeURIComponent(currentProject)}` : ''
+      await fetch(`/api/chat/sessions/${encodeURIComponent(s.sessionId)}${params}`, { method: 'DELETE' })
+      el.remove()
+      showToast(`<p>${t('session.deleted')}</p>`, 2000)
+    })
     el.addEventListener('click', () => { resumeSession(s); closeDrawer() })
     container.appendChild(el)
   })
@@ -2341,6 +2350,25 @@ function renderSessionList(list, total, append) {
     btn.textContent = `Load more (${sessionOffset}/${total})`
     btn.onclick = (e) => { e.stopPropagation(); loadSessions(true) }
     container.appendChild(btn)
+  }
+  // 一括アーカイブボタン（セッションが多い場合のみ表示）
+  if (!append && total > 20) {
+    const archiveBtn = document.createElement('button')
+    archiveBtn.className = 'load-more-btn'
+    archiveBtn.style.cssText = 'color:var(--warning);border-color:var(--warning)'
+    archiveBtn.textContent = t('session.archiveOld')
+    archiveBtn.onclick = async (e) => {
+      e.stopPropagation()
+      if (!confirm(t('session.archiveConfirm'))) return
+      const res = await fetch('/api/chat/sessions/archive-old', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30 }),
+      })
+      const data = await res.json()
+      showToast(`<p>${data.archived} ${t('session.archived')}</p>`, 3000)
+      loadSessions()
+    }
+    container.appendChild(archiveBtn)
   }
 }
 

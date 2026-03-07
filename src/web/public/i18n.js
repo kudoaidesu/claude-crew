@@ -58,6 +58,13 @@
       'toast.compactDone': 'コンパクト完了。切り替えてキュー済みメッセージを送信します。',
       'toast.compactError': 'コンパクトエラー',
 
+      // ── セッション管理 ──
+      'session.deleteConfirm': 'このセッションを削除しますか？',
+      'session.deleted': 'セッションを削除しました',
+      'session.archiveOld': '30日以上前のセッションをアーカイブ',
+      'session.archiveConfirm': '30日以上アクセスのないセッションをアーカイブしますか？',
+      'session.archived': '件のセッションをアーカイブしました',
+
       // ── 設定パネル ──
       'settings.title': '設定',
       'settings.theme': 'テーマ',
@@ -168,6 +175,13 @@
       'toast.waitForResponse': 'Wait for current response to finish',
       'toast.compactDone': 'Compact done. Switch back to send queued message.',
       'toast.compactError': 'Compact error',
+
+      // ── Session Management ──
+      'session.deleteConfirm': 'Delete this session?',
+      'session.deleted': 'Session deleted',
+      'session.archiveOld': 'Archive sessions older than 30 days',
+      'session.archiveConfirm': 'Archive sessions not accessed for 30+ days?',
+      'session.archived': 'sessions archived',
 
       // ── Chat UI: File Attachments ──
       'fileAttachments': '(File attachments)',
