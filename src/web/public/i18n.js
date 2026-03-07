@@ -87,6 +87,10 @@
       'dash.noProjects': 'プロジェクトが登録されていません',
       'dash.services': '稼働サービス',
 
+      // ── 接続状態 ──
+      'connection.reconnecting': 'サーバーに再接続中...',
+      'connection.restored': '復帰しました。再読み込み中...',
+
       // ── スクリーンショット ──
       'ss.title': 'スクリーンショット',
       'ss.empty': 'スクリーンショットがありません',
@@ -184,6 +188,10 @@
       'dash.openPRs': 'Open PRs',
       'dash.noProjects': 'No projects registered',
       'dash.services': 'Running Services',
+
+      // ── Connection ──
+      'connection.reconnecting': 'Reconnecting to server...',
+      'connection.restored': 'Reconnected. Reloading...',
 
       // ── Screenshots ──
       'ss.title': 'Screenshots',

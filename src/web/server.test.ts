@@ -6,14 +6,14 @@ import { isPathAllowed, isTailscaleIp, isValidSessionId } from './path-guard.js'
 
 describe('path-guard security', () => {
   describe('isPathAllowed()', () => {
-    const allowedRoots = ['/Users/ai-server/work/claude-crew', '/Users/ai-server/work/other-project']
+    const allowedRoots = ['/Users/ai-server/work/pocket-cc', '/Users/ai-server/work/other-project']
 
     it('プロジェクトルート自体を許可する', () => {
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew', allowedRoots)).toBe(true)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc', allowedRoots)).toBe(true)
     })
 
     it('プロジェクトルート配下のパスを許可する', () => {
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew/src/web/server.ts', allowedRoots)).toBe(true)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc/src/web/server.ts', allowedRoots)).toBe(true)
     })
 
     it('プロジェクトルート外のパスを拒否する', () => {
@@ -34,11 +34,11 @@ describe('path-guard security', () => {
 
     it('パストラバーサル攻撃（..）を拒否する', () => {
       // resolve で正規化されるので /etc/passwd になり拒否される
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew/../../../etc/passwd', allowedRoots)).toBe(false)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc/../../../etc/passwd', allowedRoots)).toBe(false)
     })
 
     it('プロジェクト名をプレフィックスに持つ別パスを拒否する', () => {
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew-malicious', allowedRoots)).toBe(false)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc-malicious', allowedRoots)).toBe(false)
     })
 
     it('複数プロジェクトのどれかに含まれれば許可する', () => {
@@ -46,12 +46,12 @@ describe('path-guard security', () => {
     })
 
     it('空のallowedRootsではすべて拒否する', () => {
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew', [])).toBe(false)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc', [])).toBe(false)
     })
 
     it('コマンドインジェクション文字列を含むパスを拒否する', () => {
       // ";touch /tmp/marker;echo " がパスに含まれていても正しく拒否される
-      expect(isPathAllowed('/Users/ai-server/work/claude-crew";touch /tmp/marker;echo "', allowedRoots)).toBe(false)
+      expect(isPathAllowed('/Users/ai-server/work/pocket-cc";touch /tmp/marker;echo "', allowedRoots)).toBe(false)
     })
   })
 

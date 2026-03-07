@@ -9,7 +9,7 @@ test.describe('Web UI', () => {
     // プロジェクト一覧の読み込みを待つ
     await page.waitForFunction(() => {
       const title = document.getElementById('title')
-      return title && title.textContent !== 'claude-crew'
+      return title && title.textContent !== 'pocket-cc'
     }, null, { timeout: 5000 }).catch(() => {
       // タイトルが変わらなくてもOK（プロジェクトがモックなので）
     })

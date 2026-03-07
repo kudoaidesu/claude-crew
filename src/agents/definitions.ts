@@ -80,7 +80,7 @@ export function buildFrontDeskPrompt(projects: ProjectConfig[]): string {
     .join('\n')
 
   return [
-    `あなたは claude-crew のフロントデスクエージェントです。`,
+    `あなたは pocket-cc のフロントデスクエージェントです。`,
     `複数プロジェクトを横断管理し、ワーカーエージェントに作業を委任します。`,
     ``,
     `## 利用可能なワーカー`,

@@ -1,6 +1,6 @@
 # 配布可能化 実装計画
 
-claude-crew を OSS として公開するための実装計画。
+pocket-cc を OSS として公開するための実装計画。
 他人がクローンして `npm install → npm run setup → npm run web` で動かせる状態を目指す。
 
 ## 利用モデル
@@ -15,7 +15,7 @@ claude-crew を OSS として公開するための実装計画。
 
 | # | 問題 | 深刻度 | 影響 |
 |---|------|--------|------|
-| 1 | `projects.json` に `/Users/ai-server/work/claude-crew` がコミット済み | **高** | 他環境で即エラー |
+| 1 | `projects.json` に `/Users/ai-server/work/pocket-cc` がコミット済み | **高** | 他環境で即エラー |
 | 2 | Web UI 認証なし（Tailscale ACL に完全依存） | **高** | Tailscale なし環境で無防備に公開 |
 | 3 | `.env.example` に実 Tailscale IP `100.116.180.63` | 中 | 誤解を与える |
 | 4 | `ANTHROPIC_API_KEY` 非対応 | 中 | APIキーユーザーが使えない |
@@ -64,7 +64,7 @@ claude-crew を OSS として公開するための実装計画。
 
 **追加するステップ**:
 
-1. **ヘッダー名の修正**: 「Issue AI Bot」→「claude-crew」
+1. **ヘッダー名の修正**: 「Issue AI Bot」→「pocket-cc」
 
 2. **Claude CLI 認証の自動化** (`setupAuth`):
    - `claude --version` で CLI 存在確認 → 未インストールなら `npm i -g @anthropic-ai/claude-code` を案内
@@ -167,8 +167,8 @@ if (!isTailscaleBound && webUsername && webPassword) {
 ## 理想的なユーザー体験
 
 ```bash
-git clone https://github.com/kudoaidesu/claude-crew
-cd claude-crew
+git clone https://github.com/kudoaidesu/pocket-cc
+cd pocket-cc
 npm install
 npm run setup    # 対話式: Claude認証 → gh認証 → WORK_DIR → projects.json → .env 一括生成
 npm run web:dev  # Web UI 起動

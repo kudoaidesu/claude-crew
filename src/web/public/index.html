@@ -441,6 +441,11 @@ pre:hover .code-copy-btn{opacity:1}
   .messages{padding:10px}
 }
 
+/* ── 接続バナー ── */
+.connection-banner{position:fixed;top:44px;left:0;right:0;z-index:999;display:none;padding:7px 12px;text-align:center;font-size:13px;color:var(--warning);background:var(--warning-bg);border-bottom:1px solid rgba(249,226,175,.2)}
+.connection-banner.is-visible{display:block}
+.connection-banner.is-recovered{color:var(--success);background:var(--success-bg)}
+
 /* ── Compacting バナー ── */
 .compact-banner{display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--warning-bg);border-top:1px solid rgba(249,226,175,.15);font-size:12px;color:var(--warning);flex-shrink:0}
 .compact-banner.active{display:flex}
@@ -563,6 +568,7 @@ pre:hover .code-copy-btn{opacity:1}
   </div>
   <button class="header-btn" id="settingsBtn" onclick="openSettingsPanel()" title="Settings"></button>
 </div>
+<div id="connectionBanner" class="connection-banner" role="status" aria-live="polite"></div>
 <div class="tab-bar-wrap">
   <div class="tab-bar" id="tabBar">
     <div class="tab-add" id="tabAddBtn" onclick="createNewTab()" title="New Chat"></div>
@@ -2081,6 +2087,7 @@ async function init() {
   if (currentProject) loadGitStatus()
   updateInputBoxModeColor()
   refreshTabScreenshotCounts()
+  initConnectionManager()
 
   // ブラウザ再接続: アクティブなストリームがあれば自動復帰
   tabs.forEach((tab, tabId) => {
@@ -2501,6 +2508,74 @@ function openSsFull(name) {
 function closeSsFull() {
   document.getElementById('ssFull').classList.remove('open')
 }
+
+// ── Connection Manager ──
+;(() => {
+  const cfg = {
+    url: '/api/health',
+    timeoutMs: 2000,
+    pollMsOnline: 4000,
+    pollMsDown: 1000,
+    failThreshold: 2,
+    reloadDelayMs: 700,
+  }
+  const $banner = document.getElementById('connectionBanner')
+  let state = 'unknown', fails = 0, timer = null
+
+  function render(next) {
+    state = next
+    if (!$banner) return
+    if (next === 'down') {
+      $banner.textContent = t('connection.reconnecting')
+      $banner.classList.add('is-visible')
+      $banner.classList.remove('is-recovered')
+    } else if (next === 'recovering') {
+      $banner.textContent = t('connection.restored')
+      $banner.classList.add('is-visible', 'is-recovered')
+    } else {
+      $banner.classList.remove('is-visible', 'is-recovered')
+    }
+  }
+
+  async function healthCheck() {
+    const ac = new AbortController()
+    const timeout = setTimeout(() => ac.abort(), cfg.timeoutMs)
+    try {
+      const res = await fetch(cfg.url + '?t=' + Date.now(), { cache: 'no-store', signal: ac.signal })
+      return res.ok
+    } catch { return false }
+    finally { clearTimeout(timeout) }
+  }
+
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(tick, ms) }
+
+  async function tick() {
+    const ok = await healthCheck()
+    if (ok) {
+      fails = 0
+      if (state === 'down') {
+        render('recovering')
+        setTimeout(() => location.reload(), cfg.reloadDelayMs)
+        return
+      }
+      render('online')
+      schedule(cfg.pollMsOnline)
+      return
+    }
+    fails++
+    if (fails >= cfg.failThreshold && state !== 'down') render('down')
+    schedule(state === 'down' ? cfg.pollMsDown : cfg.pollMsOnline)
+  }
+
+  window.initConnectionManager = function() {
+    render('online')
+    tick()
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') tick()
+    })
+    window.addEventListener('online', tick)
+  }
+})()
 
 // スクショカウントをタブに反映
 async function refreshTabScreenshotCounts() {

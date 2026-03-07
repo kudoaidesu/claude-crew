@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { initSchema } from './schema.js'
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const DB_PATH = join(projectRoot, 'data', 'claude-crew.db')
+const DB_PATH = join(projectRoot, 'data', 'pocket-cc.db')
 
 let db: Database.Database | null = null
 
