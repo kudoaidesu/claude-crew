@@ -114,6 +114,19 @@ async function writeEventSSE(
           cost: event.cost, turns: event.turns, durationMs: event.durationMs, isError: event.isError,
         }),
       })
+      // コスト情報をDBに累積記録
+      if (event.sessionId && (event.cost || event.turns || event.durationMs)) {
+        try {
+          const db = getDb()
+          db.prepare(`
+            UPDATE sessions SET
+              total_cost = total_cost + COALESCE(?, 0),
+              total_turns = total_turns + COALESCE(?, 0),
+              total_duration_ms = total_duration_ms + COALESCE(?, 0)
+            WHERE session_id = ?
+          `).run(event.cost || 0, event.turns || 0, event.durationMs || 0, event.sessionId)
+        } catch { /* ignore if session not in DB yet */ }
+      }
       return { sessionId: event.sessionId }
     case 'error':
       await stream.writeSSE({ id, event: 'error', data: JSON.stringify({ message: event.message }) })
