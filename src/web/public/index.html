@@ -243,11 +243,20 @@ pre:hover .code-copy-btn{opacity:1}
 .toast-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199}
 
 /* ── ローディング ── */
-.typing{display:flex;align-items:center;gap:6px;padding:8px 0;color:var(--muted);font-size:13px}
+.typing{display:none}
 .typing-dots{display:flex;gap:3px}
 .typing-dots span{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate;opacity:1}
 .typing-dots span:nth-child(2){animation-delay:.2s}
 .typing-dots span:nth-child(3){animation-delay:.4s}
+.global-typing{display:none;align-items:center;gap:6px;padding:8px 16px 10px;color:var(--muted);font-size:12px}
+.global-typing.active{display:flex}
+.global-typing .gt-label{font-size:11px;color:var(--warning);display:flex;align-items:center;gap:4px}
+.gt-dots{display:inline-flex;gap:1px;width:14px}
+.gt-dots span{animation:gtDot 1.4s infinite;opacity:.2}
+.gt-dots span:nth-child(1){animation-delay:0s}
+.gt-dots span:nth-child(2){animation-delay:.2s}
+.gt-dots span:nth-child(3){animation-delay:.4s}
+@keyframes gtDot{0%,80%,100%{opacity:.2}40%{opacity:1}}
 @keyframes bounce{to{opacity:.3;transform:translateY(-4px)}}
 .reconnecting{display:flex;align-items:center;gap:6px;padding:6px 10px;margin:4px 0;border-radius:8px;background:var(--warning-bg, rgba(255,165,0,.1));color:var(--warning, #e08700);font-size:12px}
 .reconnecting .reconnect-dots{display:flex;gap:2px}
@@ -371,10 +380,22 @@ pre:hover .code-copy-btn{opacity:1}
 .ss-thumb-name{position:absolute;bottom:0;left:0;right:0;padding:4px 6px;font-size:10px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));overflow:hidden;text-overflow:ellipsis}
 .ss-thumb-desc{font-size:9px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ss-full-desc{text-align:center;font-size:13px;color:var(--muted);margin-top:4px;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ss-full{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:20;display:none;align-items:center;justify-content:center;cursor:pointer}
+.ss-full{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:zoom-out;padding:16px}
 .ss-full.open{display:flex}
-.ss-full img{max-width:95vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
-.ss-full-name{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;font-family:var(--font-mono);background:rgba(0,0,0,.6);padding:4px 12px;border-radius:6px}
+.ss-full img{max-width:95vw;max-height:82vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);object-fit:contain}
+.ss-full-cap{text-align:center;max-width:90vw}
+.ss-full-name{color:#fff;font-size:13px;font-weight:600;margin-bottom:4px;word-break:break-all}
+.ss-full-desc{color:#a0a0b0;font-size:12px;margin-bottom:4px}
+.ss-full-counter{font-size:11px;color:var(--muted)}
+.ss-full-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:40px;height:60px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:10}
+.ss-full-nav:hover{background:rgba(255,255,255,.22)}
+.ss-full-nav:disabled{opacity:.2;cursor:default}
+.ss-full-nav.prev{left:12px}
+.ss-full-nav.next{right:12px}
+.ss-filter{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 10px}
+.ss-filter-btn{border:1px solid var(--border);background:none;color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:var(--font-sans);transition:all .12s}
+.ss-filter-btn:hover{color:var(--text);border-color:var(--border-light)}
+.ss-filter-btn.active{color:var(--accent);border-color:var(--accent-border);background:var(--accent-dim)}
 .ss-empty{text-align:center;padding:32px;color:var(--muted);font-size:13px}
 [data-theme="light"] .ss-panel{box-shadow:0 12px 40px rgba(0,0,0,.15)}
 
@@ -548,6 +569,10 @@ pre:hover .code-copy-btn{opacity:1}
   <div style="position:relative">
     <button class="header-btn" id="featuresBtn" onclick="toggleFeaturesMenu()" title="Features"></button>
     <div class="features-menu" id="featuresMenu">
+      <button class="features-menu-item" onclick="closeFeaturesMenu();openDrawer('sessions')">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="fm-label" data-i18n="drawer.sessions">Sessions</span>
+      </button>
       <button class="features-menu-item" onclick="closeFeaturesMenu();window.location='/observer'">
         <svg class="ic" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
         <span class="fm-label">Observer</span>
@@ -582,6 +607,10 @@ pre:hover .code-copy-btn{opacity:1}
 
 <div id="sessionsContainer"></div>
 
+<div class="global-typing" id="globalTyping">
+  <div class="typing-dots"><span></span><span></span><span></span></div>
+  <span class="gt-label" id="gtLabel" style="display:none"></span>
+</div>
 <div class="input-area" style="position:relative">
   <div class="compact-banner" id="compactBanner"></div>
   <div id="gitBar" class="git-statusbar">
@@ -725,9 +754,18 @@ pre:hover .code-copy-btn{opacity:1}
   </div>
 </div>
 <div class="ss-full" id="ssFull" onclick="closeSsFull()">
+  <button class="ss-full-nav prev" id="ssPrev" onclick="event.stopPropagation();ssNavigate(-1)" disabled>
+    <svg class="ic" viewBox="0 0 24 24" style="font-size:20px"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
   <img id="ssFullImg" src="" alt="">
-  <div class="ss-full-name" id="ssFullName"></div>
-  <div class="ss-full-desc" id="ssFullDesc"></div>
+  <button class="ss-full-nav next" id="ssNext" onclick="event.stopPropagation();ssNavigate(1)" disabled>
+    <svg class="ic" viewBox="0 0 24 24" style="font-size:20px"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+  <div class="ss-full-cap">
+    <div class="ss-full-name" id="ssFullName"></div>
+    <div class="ss-full-desc" id="ssFullDesc"></div>
+    <div class="ss-full-counter" id="ssFullCounter"></div>
+  </div>
 </div>
 
 <!-- プロジェクトダッシュボード -->
@@ -1176,23 +1214,31 @@ function showCompacting(show, tabId) {
   if (!tab) return
   const banner = document.getElementById('compactBanner')
   const pill = document.getElementById('tokenPill')
-  // グローバルバナーは非表示にする（オーバーレイに移行）
   banner.classList.remove('active')
   if (_compactDotTimer) { clearInterval(_compactDotTimer); _compactDotTimer = null }
   // 既存オーバーレイを削除
   const existing = tab.messagesEl.querySelector('.compact-overlay')
   if (existing) existing.remove()
+  const gtLabel = document.getElementById('gtLabel')
   if (show) {
     if (pill) pill.style.display = 'none'
-    // メッセージ領域にオーバーレイを表示
-    tab.messagesEl.style.position = 'relative'
-    const overlay = document.createElement('div')
-    overlay.className = 'compact-overlay'
-    overlay.innerHTML = `<div class="compact-spinner"></div><div class="compact-label">${ic('zap', 16)} Compacting...</div>`
-    tab.messagesEl.appendChild(overlay)
+    // 入力エリア上のグローバルインジケーターにCompacting表示
+    if (tid === activeTabId) {
+      const gt = document.getElementById('globalTyping')
+      gt.querySelector('.typing-dots').style.display = 'none'
+      gtLabel.innerHTML = `${ic('zap', 12)} Compacting<span class="gt-dots"><span>.</span><span>.</span><span>.</span></span>`
+      gtLabel.style.display = ''
+      gt.classList.add('active')
+    }
   } else {
-    // tokenPill を復元
     if (tid === activeTabId && pill) pill.style.display = 'flex'
+    // Compactingラベルを除去
+    gtLabel.style.display = 'none'
+    gtLabel.innerHTML = ''
+    const gt = document.getElementById('globalTyping')
+    gt.querySelector('.typing-dots').style.display = ''
+    // streaming中でなければグローバルインジケーターも非表示
+    if (tid === activeTabId && !tab.sending) gt.classList.remove('active')
   }
 }
 function showCompactDone(trigger, preTokens, tabId) {
@@ -2026,6 +2072,11 @@ function updateStreamingUI(streaming) {
   abortBtn.style.display = streaming ? 'flex' : 'none'
   const box = document.querySelector('.input-box')
   box.classList.toggle('streaming', streaming)
+  document.getElementById('globalTyping').classList.toggle('active', streaming)
+  // streaming終了時にメッセージ内の残留.typingも除去
+  if (!streaming) {
+    document.querySelectorAll('.content .typing').forEach(el => el.remove())
+  }
 }
 
 function updateInputBoxModeColor() {
@@ -2472,6 +2523,9 @@ function closeScreenshots() {
   document.getElementById('ssOverlay').classList.remove('open')
 }
 var _ssFiles = []
+var _ssFiltered = []
+var _ssIdx = -1
+var _ssFilterProject = ''
 async function loadScreenshots() {
   const body = document.getElementById('ssBody')
   body.innerHTML = `<div class="cost-loading">${t('loading')}</div>`
@@ -2480,30 +2534,65 @@ async function loadScreenshots() {
     if (!res.ok) throw new Error(res.statusText)
     const files = await res.json()
     _ssFiles = files
-    if (!files.length) { body.innerHTML = `<div class="ss-empty">${t('ss.empty')}</div>`; return }
-    let html = '<div class="ss-grid">'
-    for (const f of files) {
-      const date = new Date(f.mtime)
-      const label = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`
-      const desc = f.description ? `<div class="ss-thumb-desc">${esc(f.description)}</div>` : ''
-      html += `<div class="ss-thumb" onclick="openSsFull('${esc(f.name)}')">
-        <img src="/screenshots/${encodeURIComponent(f.name)}" loading="lazy" alt="${esc(f.name)}">
-        <div class="ss-thumb-name">${esc(f.name.replace(/\.(png|jpe?g|webp|gif)$/i, ''))} ${label}${desc}</div>
-      </div>`
-    }
-    html += '</div>'
-    body.innerHTML = html
+    // プロジェクト一覧を抽出
+    const projects = [...new Set(files.map(f => f.project).filter(Boolean))].sort()
+    renderSsPanel(body, files, projects)
   } catch (e) {
     body.innerHTML = `<div class="cost-loading" style="color:var(--danger)">${e.message}</div>`
   }
 }
+function renderSsPanel(body, files, projects) {
+  let html = ''
+  if (projects.length > 0) {
+    html += '<div class="ss-filter">'
+    html += `<button class="ss-filter-btn ${!_ssFilterProject ? 'active' : ''}" onclick="filterSsProject('')">All</button>`
+    for (const p of projects) {
+      html += `<button class="ss-filter-btn ${_ssFilterProject === p ? 'active' : ''}" onclick="filterSsProject('${esc(p)}')">${esc(p)}</button>`
+    }
+    html += '</div>'
+  }
+  const filtered = _ssFilterProject ? files.filter(f => f.project === _ssFilterProject) : files
+  _ssFiltered = filtered
+  if (!filtered.length) { body.innerHTML = html + `<div class="ss-empty">${t('ss.empty')}</div>`; return }
+  html += '<div class="ss-grid">'
+  for (const f of filtered) {
+    const date = new Date(f.mtime)
+    const label = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`
+    const desc = f.description ? `<div class="ss-thumb-desc">${esc(f.description)}</div>` : ''
+    html += `<div class="ss-thumb" onclick="openSsFull('${esc(f.name)}')">
+      <img src="/screenshots/${encodeURIComponent(f.name)}" loading="lazy" alt="${esc(f.name)}">
+      <div class="ss-thumb-name">${esc(f.name.replace(/\.(png|jpe?g|webp|gif)$/i, ''))} ${label}${desc}</div>
+    </div>`
+  }
+  html += '</div>'
+  body.innerHTML = html
+}
+function filterSsProject(slug) {
+  _ssFilterProject = slug
+  const body = document.getElementById('ssBody')
+  const projects = [...new Set(_ssFiles.map(f => f.project).filter(Boolean))].sort()
+  renderSsPanel(body, _ssFiles, projects)
+}
 function openSsFull(name) {
-  const el = document.getElementById('ssFull')
-  document.getElementById('ssFullImg').src = '/screenshots/' + encodeURIComponent(name)
-  document.getElementById('ssFullName').textContent = name
-  const f = _ssFiles.find(x => x.name === name)
-  document.getElementById('ssFullDesc').textContent = f?.description || ''
-  el.classList.add('open')
+  _ssIdx = _ssFiltered.findIndex(x => x.name === name)
+  if (_ssIdx < 0) _ssIdx = 0
+  _renderSsFull(_ssIdx)
+  document.getElementById('ssFull').classList.add('open')
+}
+function _renderSsFull(idx) {
+  const f = _ssFiltered[idx] || {}
+  document.getElementById('ssFullImg').src = f.name ? '/screenshots/' + encodeURIComponent(f.name) : ''
+  document.getElementById('ssFullName').textContent = f.description || f.name || ''
+  document.getElementById('ssFullDesc').textContent = f.description ? f.name : ''
+  document.getElementById('ssFullCounter').textContent = _ssFiltered.length > 1 ? `${idx + 1} / ${_ssFiltered.length}` : ''
+  document.getElementById('ssPrev').disabled = idx <= 0
+  document.getElementById('ssNext').disabled = idx >= _ssFiltered.length - 1
+}
+function ssNavigate(dir) {
+  const next = _ssIdx + dir
+  if (next < 0 || next >= _ssFiltered.length) return
+  _ssIdx = next
+  _renderSsFull(_ssIdx)
 }
 function closeSsFull() {
   document.getElementById('ssFull').classList.remove('open')
@@ -2998,13 +3087,14 @@ async function sendMessage() {
     tab.pendingMessage = text
     inputEl.value = ''
     autoResize()
-    // オーバーレイにキュー済みメッセージ表示を追加
-    const overlay = tab.messagesEl.querySelector('.compact-overlay')
-    if (overlay && !overlay.querySelector('.compact-queued')) {
-      const queued = document.createElement('div')
+    // グローバルインジケーターにキュー済み表示
+    const gtLabel = document.getElementById('gtLabel')
+    if (gtLabel && !gtLabel.querySelector('.compact-queued')) {
+      const queued = document.createElement('span')
       queued.className = 'compact-queued'
+      queued.style.cssText = 'font-size:10px;color:var(--muted);margin-left:6px'
       queued.textContent = t('compact.queued')
-      overlay.appendChild(queued)
+      gtLabel.appendChild(queued)
     }
     return
   }

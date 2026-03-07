@@ -186,6 +186,52 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 }
 [data-theme="light"] .session-card{box-shadow:0 1px 3px rgba(0,0,0,.06)}
 [data-theme="light"] .skeleton{background:linear-gradient(90deg,#e6e9ef 25%,#f2f4f8 50%,#e6e9ef 75%);background-size:200% 100%}
+
+/* ── リソースドロワー ── */
+/* ── スクリーンショットサムネイル ── */
+.ss-obs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:4px}
+.ss-obs-thumb{border-radius:6px;overflow:hidden;cursor:pointer;border:1px solid var(--border);transition:all .15s;aspect-ratio:16/10;position:relative;background:var(--bg)}
+.ss-obs-thumb:hover{border-color:var(--accent-border);transform:scale(1.03)}
+.ss-obs-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ss-obs-meta{position:absolute;bottom:0;left:0;right:0;padding:3px 5px;background:linear-gradient(0deg,rgba(0,0,0,.75),transparent);font-size:9px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── ライトボックス ── */
+.lightbox{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:zoom-out;padding:16px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:95vw;max-height:82vh;object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.lightbox-cap{color:#ccc;font-size:12px;text-align:center;max-width:80vw;line-height:1.5}
+.lightbox-cap .lb-name{color:#fff;font-weight:600}
+.lightbox-cap .lb-desc{color:var(--muted)}
+
+/* ── ライトボックス詳細 ── */
+.lightbox-cap{text-align:center;max-width:90vw}
+.lb-name{color:#fff;font-size:13px;font-weight:600;margin-bottom:4px;word-break:break-all}
+.lb-desc{color:#a0a0b0;font-size:12px;margin-bottom:6px;line-height:1.5}
+.lb-meta{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.lb-meta-item{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.06);padding:3px 8px;border-radius:4px}
+.lb-session{color:var(--accent);font-family:var(--font-mono)}
+
+/* ── ライトボックスナビ ── */
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:40px;height:60px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:10}
+.lb-nav:hover{background:rgba(255,255,255,.22)}
+.lb-nav:disabled{opacity:.2;cursor:default}
+.lb-nav.prev{left:12px}
+.lb-nav.next{right:12px}
+.lb-counter{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ── ツールエントリ拡張 ── */
+.tool-entry-task{margin-bottom:8px;padding:8px 10px 8px 14px;border-radius:6px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);position:relative}
+.tool-entry-task::before{display:none}
+.tool-entry-task .task-header{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.tool-entry-task .task-desc{font-size:12px;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tool-entry-todo{margin-bottom:8px;padding:8px 10px 8px 14px;border-radius:6px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);position:relative}
+.tool-entry-todo::before{display:none}
+.todo-item{display:flex;align-items:flex-start;gap:6px;padding:2px 0;font-size:11px;line-height:1.4}
+.todo-item .todo-icon{flex-shrink:0;width:14px;text-align:center}
+.todo-item.done{color:var(--success)}
+.todo-item.done span:last-child{text-decoration:line-through;opacity:.7}
+.todo-item.active{color:var(--accent)}
+.todo-item.pending{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -223,11 +269,32 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
     <span class="tab-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
     <span class="tab-label" data-i18n="obs.tab.governance">監査</span>
   </div>
+  <div class="layer-tab" data-layer="images" onclick="switchLayer('images')">
+    <span class="tab-icon"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+    <span class="tab-label">画像</span>
+  </div>
 </div>
 
 <div id="contextBanner" class="context-banner" style="display:none"></div>
 
 <div class="main" id="main"></div>
+
+<!-- ライトボックス -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lb-nav prev" id="lbPrev" onclick="event.stopPropagation();lbNavigate(-1)" disabled>
+    <svg class="ic" viewBox="0 0 24 24" style="font-size:20px"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+  <img id="lbImg" src="" alt="">
+  <button class="lb-nav next" id="lbNext" onclick="event.stopPropagation();lbNavigate(1)" disabled>
+    <svg class="ic" viewBox="0 0 24 24" style="font-size:20px"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+  <div class="lightbox-cap">
+    <div class="lb-name" id="lbName"></div>
+    <div class="lb-desc" id="lbDesc"></div>
+    <div class="lb-meta" id="lbMeta"></div>
+    <div class="lb-counter" id="lbCounter"></div>
+  </div>
+</div>
 
 <script src="/static/theme.js"></script>
 <script src="/static/i18n.js"></script>
@@ -754,6 +821,8 @@ function updateLayerTabCounts() {
   })
 }
 
+function loadSessions() { renderSessions() }
+
 function renderLayer(layer) {
   const main = document.getElementById('main')
   if (!currentNodeData) return
@@ -774,6 +843,9 @@ function renderLayer(layer) {
       break
     case 'governance':
       renderGovernance(main, d.governance)
+      break
+    case 'images':
+      renderImages(main)
       break
   }
 }
@@ -831,16 +903,53 @@ function renderExecution(el, data) {
   // Timeline
   html += '<div class="tool-timeline">'
   for (const t of data.tools) {
-    const time = t.timestamp ? formatTime(t.timestamp) : ''
-    html += `<div class="tool-entry">
-      <span class="tool-name">${esc(t.name)}</span>
-      <span class="tool-detail">${esc(t.summary)}</span>
-      ${time ? `<span class="tool-time">${time}</span>` : ''}
-    </div>`
+    html += renderToolEntry(t)
   }
   html += '</div>'
 
   el.innerHTML = html
+}
+
+function renderToolEntry(t) {
+  const time = t.timestamp ? formatTime(t.timestamp) : ''
+  if (t.name === 'Task') {
+    const match = t.summary.match(/^\[([^\]]+)\]\s*(.*)$/)
+    const agentType = match ? match[1] : 'agent'
+    const desc = match ? match[2] : t.summary
+    return `<div class="tool-entry-task">
+      <div class="task-header">
+        <span style="font-size:10px;font-family:var(--font-mono);color:var(--muted);font-weight:600">TASK</span>
+        <span class="type-badge ${badgeClass(agentType)}" style="font-size:9px;padding:1px 5px">${esc(agentType)}</span>
+        ${time ? `<span class="tool-time" style="margin-left:auto">${time}</span>` : ''}
+      </div>
+      <div class="task-desc">${esc(desc)}</div>
+    </div>`
+  }
+  if (t.name === 'TodoWrite') {
+    const items = t.summary.split('\n').filter(Boolean)
+    const list = items.map(item => {
+      const isDone = item.startsWith('✓')
+      const isActive = item.startsWith('▶')
+      const cls = isDone ? 'done' : isActive ? 'active' : 'pending'
+      return `<div class="todo-item ${cls}">
+        <span class="todo-icon">${item[0]}</span>
+        <span>${esc(item.slice(2))}</span>
+      </div>`
+    }).join('')
+    return `<div class="tool-entry-todo">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <span style="font-size:10px;font-family:var(--font-mono);color:var(--muted);font-weight:600">TODO</span>
+        <span style="font-size:10px;color:var(--muted)">${items.length} items</span>
+        ${time ? `<span class="tool-time" style="margin-left:auto">${time}</span>` : ''}
+      </div>
+      ${list}
+    </div>`
+  }
+  return `<div class="tool-entry">
+    <span class="tool-name">${esc(t.name)}</span>
+    <span class="tool-detail">${esc(t.summary)}</span>
+    ${time ? `<span class="tool-time">${time}</span>` : ''}
+  </div>`
 }
 
 function renderState(el, data) {
@@ -943,6 +1052,101 @@ function badgeClass(type) {
   if (t === 'code' || t === 'general-purpose') return 'code'
   if (t === 'review') return 'review'
   return 'other'
+}
+
+// ── Screenshots data store ────────────────────
+let _ssData = {} // name → {size, mtime, description, sessionId}
+let _ssList = [] // 現在表示中のスクリーンショットリスト（ナビ用）
+let _ssIdx = -1  // ライトボックスで表示中のインデックス
+
+async function fetchScreenshots() {
+  try {
+    const res = await fetch('/api/screenshots')
+    const data = await res.json()
+    if (Array.isArray(data)) {
+      _ssData = {}
+      data.forEach(s => { _ssData[s.name] = s })
+      return data
+    }
+  } catch { /* ignore */ }
+  return []
+}
+
+// ── Lightbox ──────────────────────────────────
+function openLightbox(name) {
+  const idx = _ssList.findIndex(s => s.name === name)
+  _ssIdx = idx >= 0 ? idx : 0
+  _renderLightbox(_ssIdx)
+  document.getElementById('lightbox').classList.add('open')
+}
+
+function _renderLightbox(idx) {
+  const s = _ssList[idx] || {}
+  const name = s.name || ''
+  document.getElementById('lbImg').src = name ? '/screenshots/' + encodeURIComponent(name) : ''
+  document.getElementById('lbName').textContent = s.description || name
+  document.getElementById('lbDesc').textContent = s.description ? name : ''
+  const date = s.mtime ? new Date(s.mtime).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
+  const size = s.size ? Math.round(s.size / 1024) + ' KB' : ''
+  const sid = s.sessionId ? s.sessionId.slice(0, 8) + '…' : ''
+  document.getElementById('lbMeta').innerHTML = [
+    date ? `<span class="lb-meta-item"><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${esc(date)}</span>` : '',
+    size ? `<span class="lb-meta-item"><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${esc(size)}</span>` : '',
+    sid ? `<span class="lb-meta-item lb-session"><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> ${esc(sid)}</span>` : '',
+  ].filter(Boolean).join('')
+  document.getElementById('lbCounter').textContent = _ssList.length > 1 ? `${idx + 1} / ${_ssList.length}` : ''
+  document.getElementById('lbPrev').disabled = idx <= 0
+  document.getElementById('lbNext').disabled = idx >= _ssList.length - 1
+}
+
+function lbNavigate(dir) {
+  const next = _ssIdx + dir
+  if (next < 0 || next >= _ssList.length) return
+  _ssIdx = next
+  _renderLightbox(_ssIdx)
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open')
+  document.getElementById('lbImg').src = ''
+}
+
+// ── Layer: Images ─────────────────────────────
+async function renderImages(el) {
+  const state = navStack[navStack.length - 1]
+  const sessionId = state?.sessionId || ''
+  el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:24px;text-align:center">Loading...</div>'
+  try {
+    const data = await fetchScreenshots()
+    if (!data.length) {
+      el.innerHTML = `<div class="empty-state">${ic('inbox', 32)}<div>スクリーンショットなし</div></div>`
+      return
+    }
+
+    // セッションIDでフィルタ（sessionIdが空の場合は全件）
+    const filtered = sessionId ? data.filter(s => s.sessionId === sessionId) : data
+    const all = filtered.length > 0 ? filtered : data
+
+    const isFiltered = filtered.length > 0 && sessionId
+    _ssList = all // ナビゲーション用リストを更新
+    let html = ''
+    if (isFiltered) {
+      html += `<div style="font-size:11px;color:var(--muted);margin-bottom:10px">${ic('eye', 12)} このセッション: ${filtered.length}件 / 全${data.length}件</div>`
+    }
+    html += `<div class="ss-obs-grid">`
+    all.forEach(s => {
+      const label = s.description || s.name
+      const dimmed = (isFiltered && s.sessionId !== sessionId) ? 'opacity:.3' : ''
+      html += `<div class="ss-obs-thumb" style="${dimmed}" onclick="openLightbox('${esc(s.name)}')">
+        <img src="/screenshots/${encodeURIComponent(s.name)}" alt="${esc(s.name)}" loading="lazy">
+        <div class="ss-obs-meta">${esc(label)}</div>
+      </div>`
+    })
+    html += `</div>`
+    el.innerHTML = html
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state">${ic('alert-triangle', 32)}<div>Error: ${esc(e.message)}</div></div>`
+  }
 }
 
 // ── Start ─────────────────────────────────────

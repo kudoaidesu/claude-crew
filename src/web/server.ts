@@ -325,29 +325,62 @@ app.get('/api/evaluations', (c) => {
 const SCREENSHOTS_DIR = resolve(process.cwd(), 'data', 'screenshots')
 const SCREENSHOTS_META = join(SCREENSHOTS_DIR, 'meta.json')
 
-function loadScreenshotMeta(): Record<string, { description?: string; sessionId?: string }> {
+interface ScreenshotMeta { description?: string; sessionId?: string; project?: string }
+function loadScreenshotMeta(): Record<string, ScreenshotMeta> {
   try {
     if (existsSync(SCREENSHOTS_META)) return JSON.parse(readFileSync(SCREENSHOTS_META, 'utf-8'))
   } catch {}
   return {}
 }
-function saveScreenshotMeta(meta: Record<string, { description?: string; sessionId?: string }>) {
+function saveScreenshotMeta(meta: Record<string, ScreenshotMeta>) {
   if (!existsSync(SCREENSHOTS_DIR)) mkdirSync(SCREENSHOTS_DIR, { recursive: true })
   writeFileSync(SCREENSHOTS_META, JSON.stringify(meta, null, 2))
+}
+
+// sessionId → projectSlug キャッシュ（30秒TTL）
+let _sessionProjectMap: Record<string, string> = {}
+let _sessionProjectTs = 0
+const SESSION_PROJECT_TTL = 30_000
+
+function buildSessionProjectMap(): Record<string, string> {
+  const now = Date.now()
+  if (now - _sessionProjectTs < SESSION_PROJECT_TTL && Object.keys(_sessionProjectMap).length > 0) return _sessionProjectMap
+  const map: Record<string, string> = {}
+  const projects = loadProjectsJson()
+  const claudeBase = join(homedir(), '.claude', 'projects')
+  for (const p of projects) {
+    const dirName = p.localPath.replace(/[/_]/g, '-')
+    const projDir = join(claudeBase, dirName)
+    try {
+      if (!existsSync(projDir)) continue
+      for (const f of readdirSync(projDir)) {
+        if (f.endsWith('.jsonl')) map[f.replace('.jsonl', '')] = p.slug
+      }
+    } catch { /* skip */ }
+  }
+  _sessionProjectMap = map
+  _sessionProjectTs = now
+  return map
 }
 
 app.get('/api/screenshots', (c) => {
   try {
     if (!existsSync(SCREENSHOTS_DIR)) return c.json([])
     const meta = loadScreenshotMeta()
+    const spMap = buildSessionProjectMap()
+    const filterProject = c.req.query('project') || ''
     const files = readdirSync(SCREENSHOTS_DIR)
       .filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f))
       .map(f => {
         const st = statSync(join(SCREENSHOTS_DIR, f))
         const m = meta[f] || {}
-        return { name: f, size: st.size, mtime: st.mtimeMs, description: m.description || '', sessionId: m.sessionId || '' }
+        const sid = m.sessionId || ''
+        return { name: f, size: st.size, mtime: st.mtimeMs, description: m.description || '', sessionId: sid, project: m.project || spMap[sid] || '' }
       })
       .sort((a, b) => b.mtime - a.mtime)
+    if (filterProject) {
+      return c.json(files.filter(f => f.project === filterProject))
+    }
     return c.json(files)
   } catch (e) {
     return c.json({ error: String(e) }, 500)
@@ -356,10 +389,10 @@ app.get('/api/screenshots', (c) => {
 
 app.post('/api/screenshots/meta', async (c) => {
   try {
-    const { name, description, sessionId } = await c.req.json<{ name: string; description?: string; sessionId?: string }>()
+    const { name, description, sessionId, project } = await c.req.json<{ name: string; description?: string; sessionId?: string; project?: string }>()
     if (!name || /[/\\]/.test(name)) return c.json({ error: 'invalid name' }, 400)
     const meta = loadScreenshotMeta()
-    meta[name] = { ...meta[name], description: description ?? meta[name]?.description, sessionId: sessionId ?? meta[name]?.sessionId }
+    meta[name] = { ...meta[name], description: description ?? meta[name]?.description, sessionId: sessionId ?? meta[name]?.sessionId, project: project ?? meta[name]?.project }
     saveScreenshotMeta(meta)
     return c.json({ ok: true })
   } catch (e) {

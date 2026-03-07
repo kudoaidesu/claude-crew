@@ -158,6 +158,7 @@ function scanObserverSessions(cwd: string): SessionItem[] {
         let pos = 0
         const maxScan = Math.min(size, 256 * 1024)
         let partial = ''
+        let assistantFallback = ''
         scanLoop:
         while (pos < maxScan) {
           const bytesRead = readSync(fd, buf, 0, chunkSize, pos)
@@ -167,22 +168,42 @@ function scanObserverSessions(cwd: string): SessionItem[] {
           const lines = partial.split('\n')
           partial = lines.pop() || ''
           for (const line of lines) {
-            if (!line.includes('"type":"user"')) continue
+            const isUser = line.includes('"type":"user"')
+            const isAssistant = !isUser && line.includes('"type":"assistant"')
+            if (!isUser && !isAssistant) continue
             try {
               const obj = JSON.parse(line) as JsonlRecord
-              if (obj.type === 'user' && obj.message?.content) {
-                const textContent = obj.message.content.find(
-                  (c) => c.type === 'text'
-                )
-                if (textContent?.text) {
-                  const cleaned = cleanPreview(textContent.text)
+              if (isUser && obj.type === 'user' && obj.message?.content) {
+                const rawContent = obj.message.content as unknown
+                let userText = ''
+                if (typeof rawContent === 'string') {
+                  // メモリ注入: "User: ...\n\nAssistant: ..." 形式
+                  userText = (rawContent as string)
+                    .replace(/^User:\s*/i, '')
+                    .replace(/\s*\n+\s*Assistant:[\s\S]*/i, '')
+                    .trim()
+                } else if (Array.isArray(rawContent)) {
+                  const textBlock = (rawContent as JsonlContent[]).find((c) => c.type === 'text')
+                  userText = textBlock?.text || ''
+                }
+                if (userText) {
+                  const cleaned = cleanPreview(userText)
                   if (cleaned) { preview = cleaned; break scanLoop }
+                }
+              }
+              // アシスタントテキストをフォールバックとして収集
+              if (!assistantFallback && isAssistant && obj.type === 'assistant' && obj.message?.content) {
+                const textContent = obj.message.content.find((c) => c.type === 'text')
+                if (textContent?.text?.trim()) {
+                  assistantFallback = textContent.text.replace(/\s+/g, ' ').trim().slice(0, 150)
                 }
               }
             } catch { /* skip */ }
           }
         }
         closeSync(fd)
+        // ユーザーテキストが空の場合はアシスタントの返答を使う
+        if (!preview && assistantFallback) preview = assistantFallback
       } catch { /* skip */ }
 
       results.push({
@@ -521,6 +542,16 @@ async function extractNodeDetail(filePath: string, nodeId: string, isSubagent: b
                     summary = block.input.pattern as string
                   } else if ((toolName === 'Grep') && block.input.pattern) {
                     summary = block.input.pattern as string
+                  } else if (toolName === 'Task' && block.input) {
+                    const desc = (block.input.description as string) || ''
+                    const type = (block.input.subagent_type as string) || 'agent'
+                    summary = `[${type}] ${desc}`.slice(0, 200)
+                  } else if (toolName === 'TodoWrite' && block.input?.todos) {
+                    const todos = block.input.todos as Array<{ content: string; status: string }>
+                    summary = todos.map(t => {
+                      const icon = t.status === 'completed' ? '✓' : t.status === 'in_progress' ? '▶' : '○'
+                      return `${icon} ${t.content}`
+                    }).join('\n').slice(0, 500)
                   } else {
                     summary = JSON.stringify(block.input).slice(0, 150)
                   }
