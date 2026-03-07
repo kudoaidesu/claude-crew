@@ -65,6 +65,18 @@
       'session.archiveConfirm': '30日以上アクセスのないセッションをアーカイブしますか？',
       'session.archived': '件のセッションをアーカイブしました',
 
+      // ── コストダッシュボード ──
+      'cost.title': 'コスト',
+      'cost.overall': '全体',
+      'cost.turns': 'ターン',
+      'cost.duration': '合計時間',
+      'cost.sessions': 'セッション',
+      'cost.avgPerSession': '平均/セッション',
+      'cost.byModel': 'モデル別',
+      'cost.daily': '日別（7日間）',
+      'cost.topSessions': 'コスト上位セッション',
+      'cost.noData': 'コストデータがありません',
+
       // ── 設定パネル ──
       'settings.title': '設定',
       'settings.theme': 'テーマ',
@@ -127,6 +139,18 @@
       'chat.newChat': 'New Chat',
       'chat.send': 'Send (Enter)',
       'chat.stop': 'Stop',
+
+      // ── Cost Dashboard ──
+      'cost.title': 'Cost',
+      'cost.overall': 'Overall',
+      'cost.turns': 'Turns',
+      'cost.duration': 'Duration',
+      'cost.sessions': 'Sessions',
+      'cost.avgPerSession': 'Avg / Session',
+      'cost.byModel': 'By Model',
+      'cost.daily': 'Daily (7 days)',
+      'cost.topSessions': 'Top Sessions by Cost',
+      'cost.noData': 'No cost data available',
 
       // ── Settings Panel ──
       'settings.title': 'Settings',
