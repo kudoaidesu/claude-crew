@@ -2286,6 +2286,15 @@ function timeAgo(ts) {
   const day = Math.floor(hr / 24)
   return `${day}d ago`
 }
+function sessionTimeDetail(ts) {
+  const d = new Date(ts)
+  const now = new Date()
+  const hm = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+  if (d.toDateString() === now.toDateString()) return hm
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `昨日 ${hm}`
+  return `${d.getMonth()+1}/${d.getDate()} ${hm}`
+}
 
 function renderSessionList(list, total, append) {
   const container = document.getElementById('sessionList')
@@ -2306,14 +2315,18 @@ function renderSessionList(list, total, append) {
     const openTabId = findTabBySessionId(s.sessionId)
     el.className = 'session-item' + (openTabId ? ' active' : '')
     el.setAttribute('data-testid', 'session-item')
-    const timeStr = timeAgo(s.lastUsed)
+    const timeStr = sessionTimeDetail(s.lastUsed)
     const statusLabel = openTabId ? '<span style="color:var(--accent);font-size:10px">OPEN</span>' : ''
+    const shortId = s.sessionId.slice(0, 8)
+    const modelChip = s.model ? `<span style="font-size:10px;color:var(--muted);background:var(--surface);padding:1px 4px;border-radius:3px">${esc(s.model.replace('claude-','').replace(/-\d+$/,''))}</span>` : ''
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:4px">
         <span class="preview" style="flex:1">${esc(cleanLabel(s.messagePreview) || 'Untitled')} ${statusLabel}</span>
       </div>
-      <div class="session-meta">
+      <div class="session-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span>${timeStr}</span>
+        ${modelChip}
+        <span style="font-size:10px;color:var(--muted);opacity:.6;font-family:monospace">${shortId}</span>
       </div>
     `
     el.addEventListener('click', () => { resumeSession(s); closeDrawer() })
