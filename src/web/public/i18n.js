@@ -59,6 +59,14 @@
       'settings.title': '設定',
       'settings.theme': 'テーマ',
       'settings.language': '言語',
+      'settings.notifications': '通知',
+
+      // ── 通知 ──
+      'notif.enabled': '通知を有効にしました',
+      'notif.denied': '通知の許可が拒否されました',
+      'notif.unsupported': 'このブラウザは通知に対応していません',
+      'notif.sessionDone': 'セッション完了',
+      'notif.error': 'エラー発生',
 
       // ── Chat UI: ファイル添付 ──
       'fileAttachments': '(ファイル添付)',
@@ -122,6 +130,14 @@
       'settings.title': 'Settings',
       'settings.theme': 'Theme',
       'settings.language': 'Language',
+      'settings.notifications': 'Notifications',
+
+      // ── Notifications ──
+      'notif.enabled': 'Notifications enabled',
+      'notif.denied': 'Notification permission denied',
+      'notif.unsupported': 'Notifications not supported in this browser',
+      'notif.sessionDone': 'Session complete',
+      'notif.error': 'Error occurred',
 
       // ── Chat UI: Status & Actions ──
       'copy': 'Copy',

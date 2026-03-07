@@ -588,6 +588,10 @@ pre:hover .code-copy-btn{opacity:1}
         <span class="settings-label" data-i18n="settings.language">Language</span>
         <button class="settings-toggle" id="settingsLangBtn" onclick="toggleLang();updateSettingsLangBtn()"></button>
       </div>
+      <div class="settings-row">
+        <span class="settings-label" data-i18n="settings.notifications">Notifications</span>
+        <button class="settings-toggle" id="settingsNotifBtn" onclick="toggleNotifications()"></button>
+      </div>
     </div>
   </div>
 </div>
@@ -1885,6 +1889,7 @@ function openSettingsPanel() {
   document.getElementById('settingsOverlay').classList.add('open')
   updateSettingsThemeBtn()
   updateSettingsLangBtn()
+  updateNotifBtn()
 }
 function closeSettingsPanel() {
   document.getElementById('settingsOverlay').classList.remove('open')
@@ -1900,6 +1905,57 @@ function updateSettingsLangBtn() {
   if (!btn) return
   const lang = window.getCurrentLang ? window.getCurrentLang() : 'en'
   btn.textContent = lang === 'ja' ? 'English' : '日本語'
+}
+
+// ── 通知機能 ──
+function isNotifSupported() {
+  return 'Notification' in window
+}
+function getNotifEnabled() {
+  return localStorage.getItem('pocket-cc-notif') === 'on'
+}
+function setNotifEnabled(v) {
+  localStorage.setItem('pocket-cc-notif', v ? 'on' : 'off')
+}
+async function toggleNotifications() {
+  if (!isNotifSupported()) {
+    showToast(t('notif.unsupported'), 'warning')
+    return
+  }
+  if (getNotifEnabled()) {
+    setNotifEnabled(false)
+    updateNotifBtn()
+    return
+  }
+  // 許可リクエスト
+  const perm = await Notification.requestPermission()
+  if (perm === 'granted') {
+    setNotifEnabled(true)
+    showToast(t('notif.enabled'), 'success')
+  } else {
+    showToast(t('notif.denied'), 'warning')
+  }
+  updateNotifBtn()
+}
+function updateNotifBtn() {
+  const btn = document.getElementById('settingsNotifBtn')
+  if (!btn) return
+  if (!isNotifSupported()) {
+    btn.textContent = t('notif.unsupported')
+    btn.style.opacity = '0.5'
+    return
+  }
+  const enabled = getNotifEnabled() && Notification.permission === 'granted'
+  btn.textContent = enabled ? 'ON' : 'OFF'
+  btn.style.color = enabled ? 'var(--accent)' : ''
+}
+function sendNotification(title, body, tag) {
+  if (!getNotifEnabled() || Notification.permission !== 'granted') return
+  // ページがフォアグラウンドなら通知しない
+  if (document.visibilityState === 'visible') return
+  try {
+    new Notification(title, { body, tag, icon: '/static/icon.png', silent: false })
+  } catch { /* mobile safari may fail */ }
 }
 
 function switchDrawerTab(tab) {
@@ -2497,6 +2553,9 @@ function handleSSE(tabId, event, data, content, msgEl) {
         if (r.turns) meta.innerHTML += `<span>${r.turns} turns</span>`
         msgEl.appendChild(meta)
       }
+      // 通知: セッション完了
+      const preview = (r.text || '').slice(0, 80) || t('notif.sessionDone')
+      sendNotification('Claude', preview, 'result-' + (r.sessionId || ''))
     } catch {}
   }
 
@@ -2504,6 +2563,7 @@ function handleSSE(tabId, event, data, content, msgEl) {
     try {
       const e = JSON.parse(data)
       content.innerHTML = `<span style="color:var(--danger)" data-testid="error-message">Error: ${esc(e.message)}</span>`
+      sendNotification(t('notif.error'), e.message || 'Error', 'error')
     } catch {}
   }
 
