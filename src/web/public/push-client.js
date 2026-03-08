@@ -4,15 +4,23 @@
  * Service Worker登録、Push購読、購読情報のサーバー送信を管理する。
  */
 
-/** Service Workerを登録 */
+/** Service Workerを登録し、registration を返す */
 async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) {
-    console.warn('Service Worker not supported')
-    return null
-  }
+  if (!('serviceWorker' in navigator)) return null
   try {
     const registration = await navigator.serviceWorker.register('/sw.js')
-    console.log('Service Worker registered:', registration.scope)
+    // アクティブになるまで待つ（最大10秒）
+    if (!registration.active) {
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('SW activation timeout')), 10000)
+        const sw = registration.installing || registration.waiting
+        if (!sw) { clearTimeout(timeout); resolve(); return }
+        sw.addEventListener('statechange', function handler() {
+          if (sw.state === 'activated') { clearTimeout(timeout); sw.removeEventListener('statechange', handler); resolve() }
+          if (sw.state === 'redundant') { clearTimeout(timeout); sw.removeEventListener('statechange', handler); reject(new Error('SW became redundant')) }
+        })
+      })
+    }
     return registration
   } catch (e) {
     console.error('Service Worker registration failed:', e)
@@ -25,12 +33,19 @@ function isPushSupported() {
   return 'PushManager' in window && 'serviceWorker' in navigator && 'Notification' in window
 }
 
+/** SW registration を取得（登録済み or 新規登録） */
+async function getSwRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration('/')
+  if (existing?.active) return existing
+  return await registerServiceWorker()
+}
+
 /** 現在のPush購読状態を取得 */
 async function getPushSubscription() {
   if (!isPushSupported()) return null
-  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Service Worker の準備がタイムアウトしました。ページを再読み込みしてください')), 5000))
-  const registration = await Promise.race([navigator.serviceWorker.ready, timeout])
-  return registration.pushManager.getSubscription()
+  const reg = await getSwRegistration()
+  if (!reg) return null
+  return reg.pushManager.getSubscription()
 }
 
 /** Push通知を購読 */
@@ -57,8 +72,8 @@ async function subscribePush() {
   }
 
   // Push購読
-  const swTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Service Worker の準備がタイムアウトしました。ページを再読み込みしてください')), 5000))
-  const registration = await Promise.race([navigator.serviceWorker.ready, swTimeout])
+  const registration = await getSwRegistration()
+  if (!registration) throw new Error('Service Worker の登録に失敗しました。ページを再読み込みしてください')
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey),
