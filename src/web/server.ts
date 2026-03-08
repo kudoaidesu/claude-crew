@@ -22,6 +22,7 @@ import { changesRoutes } from './routes/changes.js'
 import { createDocRoutes } from './routes/doc-viewer.js'
 import notificationRoutes from './routes/notifications.js'
 import pushRoutes from './routes/push.js'
+import { tasksRoutes } from './routes/tasks.js'
 import { initWebPush } from './services/push-service.js'
 import { createLogger } from '../utils/logger.js'
 import { getStrategyStats, getRecentEvaluations } from '../utils/cost-tracker.js'
@@ -808,6 +809,18 @@ app.get('/incident-report', (c) => {
     return c.html(html)
   } catch {
     return c.text('incident-report.html not found', 404)
+  }
+})
+
+// --- Tasks (タスクモニター) ---
+app.route('/api/tasks', tasksRoutes)
+app.get('/tasks', (c) => {
+  try {
+    const html = readFileSync(resolve(process.cwd(), 'src/web/public/tasks.html'), 'utf-8')
+    c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    return c.html(html)
+  } catch {
+    return c.text('tasks.html not found', 404)
   }
 })
 
