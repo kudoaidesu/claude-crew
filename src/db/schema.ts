@@ -241,6 +241,51 @@ function migrateV6(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_worker_tasks_worker ON worker_tasks(worker_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_worker_tasks_status ON worker_tasks(status)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_worker_tasks_priority ON worker_tasks(priority, status)')
+
+  // worker_tasks に新カラムを追加（既存DBの場合は ALTER TABLE で追加）
+  const newColumns: Array<{ name: string; definition: string }> = [
+    { name: 'checkpoint', definition: 'TEXT' },
+    { name: 'retry_count', definition: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'next_retry_at', definition: 'TEXT' },
+    { name: 'last_error', definition: 'TEXT' },
+    { name: 'execution_mode', definition: "TEXT NOT NULL DEFAULT 'safe'" },
+  ]
+  for (const col of newColumns) {
+    try {
+      db.exec(`ALTER TABLE worker_tasks ADD COLUMN ${col.name} ${col.definition}`)
+    } catch (e) {
+      // "column already exists" は無視（IF NOT EXISTS がない場合の安全策）
+      if (!(e instanceof Error && e.message.includes('duplicate column name'))) {
+        throw e
+      }
+    }
+  }
+
+  // タスクイベント
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES worker_tasks(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      payload TEXT,
+      created_at TEXT NOT NULL
+    )
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id)')
+
+  // 通知
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      metadata TEXT,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    )
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read, created_at)')
 }
 
 // ── JSON → SQLite データ移行 ──────────────────────────────
