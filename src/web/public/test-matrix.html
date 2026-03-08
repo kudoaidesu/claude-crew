@@ -197,15 +197,8 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 .dim-list-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;font-size:12px;display:flex;align-items:center}
 .dim-list-btn:hover{color:var(--text);background:var(--surface-hover)}
 
-/* ── View Mode Toggle ── */
-.view-toggle{display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:2px;margin-left:auto}
-.view-toggle-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:5px 10px;font-size:11px;font-weight:600;border-radius:6px;transition:all .15s;white-space:nowrap}
-.view-toggle-btn.active{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-border)}
-.view-toggle-btn:not(.active):hover{color:var(--text);background:var(--surface-hover)}
-
 /* ── Browse View ── */
-#browseContainer{display:none;padding:16px;flex-direction:column;gap:16px}
-#browseContainer.visible{display:flex}
+#browseContainer{display:flex;padding:16px;flex-direction:column;gap:16px}
 
 /* breadcrumb */
 .breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-wrap:wrap}
@@ -276,48 +269,12 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
   </button>
 </header>
 
-<!-- Controls -->
-<div class="controls">
-  <div class="control-group">
-    <span class="control-label" data-i18n="tm.row">Row</span>
-    <select class="control-select" id="rowDim" onchange="renderMatrix()"></select>
-  </div>
-  <div class="control-group">
-    <span class="control-label" data-i18n="tm.col">Col</span>
-    <select class="control-select" id="colDim" onchange="renderMatrix()"></select>
-  </div>
-  <div class="control-group">
-    <span class="control-label" data-i18n="tm.filter">Filter</span>
-    <select class="control-select" id="statusFilter" onchange="renderMatrix()">
-      <option value="">All</option>
-      <option value="pass">Pass</option>
-      <option value="fail">Fail</option>
-      <option value="skip">Skip</option>
-      <option value="not_tested">Not tested</option>
-      <option value="flaky">Flaky</option>
-    </select>
-  </div>
-  <label class="control-toggle">
-    <input type="checkbox" id="showEmpty" onchange="renderMatrix()" checked> <span data-i18n="tm.showEmpty">Empty</span>
-  </label>
-  <label class="control-toggle">
-    <input type="checkbox" id="showPct" onchange="renderMatrix()"> <span>%</span>
-  </label>
-  <div class="view-toggle" id="viewToggle">
-    <button class="view-toggle-btn active" id="btnViewMatrix" onclick="setViewMode('matrix')">マトリクス</button>
-    <button class="view-toggle-btn" id="btnViewBrowse" onclick="setViewMode('browse')">分類別</button>
-  </div>
-</div>
 
 <!-- Summary -->
 <div class="summary" id="summaryStrip"></div>
 
 <!-- Main -->
 <div class="main">
-  <div id="matrixSection">
-    <div class="matrix-container" id="matrixContainer"></div>
-    <div class="cards-container" id="cardsContainer"></div>
-  </div>
   <div id="browseContainer">
     <nav class="breadcrumb" id="breadcrumb"></nav>
     <div id="browseContent"></div>
@@ -364,10 +321,8 @@ let currentProject = ''
 let dimensions = []
 let records = []
 let summary = {}
-let selectedCell = null
 
 // ── Browse view state ──
-let viewMode = 'matrix' // 'matrix' | 'browse'
 let browseState = { dim: null, value: null } // Step1: null/null, Step2: dim/null, Step3: dim/value
 
 // ── Glyphs ──
@@ -431,36 +386,8 @@ async function refresh() {
     console.error('Failed to load data', e)
   }
   btn.classList.remove('spinning')
-  populateDimSelectors()
   renderSummary()
-  renderMatrix()
-  renderCards()
-  if (viewMode === 'browse') renderBrowseView()
-}
-
-function populateDimSelectors() {
-  const rowSel = document.getElementById('rowDim')
-  const colSel = document.getElementById('colDim')
-  const prevRow = rowSel.value
-  const prevCol = colSel.value
-  rowSel.innerHTML = ''
-  colSel.innerHTML = ''
-  for (const d of dimensions) {
-    const r = document.createElement('option')
-    r.value = d.name
-    r.textContent = d.display_name
-    rowSel.appendChild(r)
-    const c = document.createElement('option')
-    c.value = d.name
-    c.textContent = d.display_name
-    colSel.appendChild(c)
-  }
-  if (prevRow && dimensions.some(d => d.name === prevRow)) rowSel.value = prevRow
-  if (prevCol && dimensions.some(d => d.name === prevCol)) {
-    colSel.value = prevCol
-  } else if (dimensions.length > 1) {
-    colSel.value = dimensions[1].name
-  }
+  renderBrowseView()
 }
 
 // ── Summary ──
@@ -484,168 +411,7 @@ function renderSummary() {
   `).join('')
 }
 
-// ── Matrix rendering ──
-function renderMatrix() {
-  const container = document.getElementById('matrixContainer')
-  if (dimensions.length < 2) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">\u25A6</div>
-        <div class="empty-title" data-i18n="tm.noDimensions">Set up dimensions first</div>
-        <div class="empty-desc" data-i18n="tm.setupGuide">Add at least 2 dimensions (e.g. Permission, Screen) to display the test matrix.</div>
-        <button class="btn-primary" onclick="openDimModal()" data-i18n="tm.addDimension">+ Add Dimension</button>
-      </div>`
-    return
-  }
-
-  const rowDimName = document.getElementById('rowDim').value
-  const colDimName = document.getElementById('colDim').value
-  if (rowDimName === colDimName) return
-
-  const rowDim = dimensions.find(d => d.name === rowDimName)
-  const colDim = dimensions.find(d => d.name === colDimName)
-  if (!rowDim || !colDim) return
-
-  const rowVals = JSON.parse(rowDim.values_json)
-  const colVals = JSON.parse(colDim.values_json)
-  const statusFilter = document.getElementById('statusFilter').value
-  const showEmpty = document.getElementById('showEmpty').checked
-  const showPct = document.getElementById('showPct').checked
-
-  // Build lookup: "rowVal|colVal" -> record
-  const lookup = new Map()
-  for (const r of records) {
-    const coord = JSON.parse(r.coordinates_json)
-    const rv = coord[rowDimName]
-    const cv = coord[colDimName]
-    if (rv && cv) {
-      lookup.set(`${rv}|${cv}`, r)
-    }
-  }
-
-  let html = '<table class="matrix"><thead><tr><th></th>'
-  for (const cv of colVals) {
-    html += `<th>${esc(cv)}</th>`
-  }
-  html += '</tr></thead><tbody>'
-
-  for (const rv of rowVals) {
-    html += `<tr><th>${esc(rv)}</th>`
-    for (const cv of colVals) {
-      const rec = lookup.get(`${rv}|${cv}`)
-      const status = rec ? rec.status : 'not_tested'
-      if (statusFilter && status !== statusFilter) {
-        if (!showEmpty) { html += '<td></td>'; continue }
-      }
-      const glyph = GLYPHS[status] || '\u25CB'
-      const runs = rec ? `${rec.pass_count}/${rec.total_runs}` : ''
-      const conf = rec ? rec.confidence : 0
-      const isSelected = selectedCell && selectedCell.row === rv && selectedCell.col === cv
-      html += `<td class="cell" onclick="onCellClick('${esc(rv)}','${esc(cv)}')" onmouseenter="showTooltip(event,'${esc(rv)}','${esc(cv)}')" onmouseleave="hideTooltip()">
-        <div class="cell-inner ${status}${isSelected ? ' selected' : ''}">
-          <span class="cell-glyph">${glyph}</span>
-          <span class="cell-count">${showPct && rec && rec.total_runs ? Math.round(rec.pass_count / rec.total_runs * 100) + '%' : runs}</span>
-          ${conf > 0 ? `<div class="cell-conf"><div class="cell-conf-bar" style="width:${conf}%"></div></div>` : ''}
-        </div>
-      </td>`
-    }
-    html += '</tr>'
-  }
-  html += '</tbody></table>'
-  container.innerHTML = html
-}
-
-// ── Cards rendering (mobile) ──
-function renderCards() {
-  const container = document.getElementById('cardsContainer')
-  if (records.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-title" data-i18n="tm.noRecords">No test records yet</div></div>'
-    return
-  }
-  let html = ''
-  for (const r of records) {
-    const coord = JSON.parse(r.coordinates_json)
-    const coordStr = Object.entries(coord).map(([k, v]) => `${k}: ${v}`).join(' / ')
-    html += `<div class="card" onclick="onCardClick(${r.id})">
-      <div class="card-header">
-        <span class="card-coord">${esc(coordStr)}</span>
-        <span class="status-badge ${r.status}">${GLYPHS[r.status]} ${STATUS_LABELS[r.status]}</span>
-      </div>
-      <div class="card-meta">
-        <span>${r.pass_count}/${r.total_runs} runs</span>
-        <span>conf: ${r.confidence}%</span>
-        ${r.last_run_at ? `<span>${new Date(r.last_run_at).toLocaleDateString()}</span>` : ''}
-      </div>
-    </div>`
-  }
-  container.innerHTML = html
-}
-
-// ── Cell interaction ──
-function onCellClick(row, col) {
-  selectedCell = { row, col }
-  renderMatrix()
-  openDrawerForCell(row, col)
-}
-
-function onCardClick(id) {
-  const rec = records.find(r => r.id === id)
-  if (rec) {
-    const coord = JSON.parse(rec.coordinates_json)
-    const keys = Object.keys(coord)
-    if (keys.length >= 2) {
-      selectedCell = { row: coord[keys[0]], col: coord[keys[1]] }
-    }
-    openDrawerForRecord(rec)
-  }
-}
-
-// ── Tooltip ──
-function showTooltip(e, row, col) {
-  const rowDimName = document.getElementById('rowDim').value
-  const colDimName = document.getElementById('colDim').value
-  const rec = records.find(r => {
-    const c = JSON.parse(r.coordinates_json)
-    return c[rowDimName] === row && c[colDimName] === col
-  })
-  const tip = document.getElementById('tooltip')
-  const status = rec ? rec.status : 'not_tested'
-  const runs = rec ? `${rec.pass_count}P / ${rec.fail_count}F / ${rec.skip_count}S` : 'N/A'
-  const lastRun = rec && rec.last_run_at ? new Date(rec.last_run_at).toLocaleString() : 'Never'
-  tip.innerHTML = `
-    <div class="tooltip-row"><span class="tooltip-label">Status</span><span class="tooltip-value">${STATUS_LABELS[status]}</span></div>
-    <div class="tooltip-row"><span class="tooltip-label">Runs</span><span class="tooltip-value">${runs}</span></div>
-    <div class="tooltip-row"><span class="tooltip-label">Last run</span><span class="tooltip-value">${lastRun}</span></div>
-    ${rec ? `<div class="tooltip-row"><span class="tooltip-label">Confidence</span><span class="tooltip-value">${rec.confidence}%</span></div>` : ''}
-  `
-  tip.style.left = Math.min(e.clientX + 12, window.innerWidth - 260) + 'px'
-  tip.style.top = (e.clientY + 12) + 'px'
-  tip.classList.add('show')
-}
-
-function hideTooltip() {
-  document.getElementById('tooltip').classList.remove('show')
-}
-
 // ── Drawer ──
-function openDrawerForCell(row, col) {
-  const rowDimName = document.getElementById('rowDim').value
-  const colDimName = document.getElementById('colDim').value
-  const rec = records.find(r => {
-    const c = JSON.parse(r.coordinates_json)
-    return c[rowDimName] === row && c[colDimName] === col
-  })
-  if (rec) {
-    openDrawerForRecord(rec)
-  } else {
-    // No record yet — show create form
-    const coord = {}
-    coord[rowDimName] = row
-    coord[colDimName] = col
-    openDrawerCreate(coord)
-  }
-}
-
 function openDrawerForRecord(rec) {
   const coord = JSON.parse(rec.coordinates_json)
   const coordStr = Object.entries(coord).map(([k, v]) => `<span style="color:var(--muted)">${k}:</span> ${v}`).join(' &rarr; ')
@@ -887,27 +653,6 @@ async function deleteDim(id) {
   renderDimList()
 }
 
-// ── View Mode ──
-function setViewMode(mode) {
-  viewMode = mode
-  const matrixSection = document.getElementById('matrixSection')
-  const browseContainer = document.getElementById('browseContainer')
-  const btnMatrix = document.getElementById('btnViewMatrix')
-  const btnBrowse = document.getElementById('btnViewBrowse')
-  if (mode === 'browse') {
-    matrixSection.style.display = 'none'
-    browseContainer.classList.add('visible')
-    btnMatrix.classList.remove('active')
-    btnBrowse.classList.add('active')
-    renderBrowseView()
-  } else {
-    matrixSection.style.display = ''
-    browseContainer.classList.remove('visible')
-    btnMatrix.classList.add('active')
-    btnBrowse.classList.remove('active')
-  }
-}
-
 // ── Browse View ──
 function renderBrowseView() {
   renderBreadcrumb()
@@ -1030,8 +775,10 @@ function renderRecordBrowser(dimName, value) {
       .join('')
     const runs = `${r.pass_count}/${r.total_runs} runs`
     const lastRun = r.last_run_at ? new Date(r.last_run_at).toLocaleDateString() : ''
+    const notesHtml = r.notes ? `<div style="font-size:13px;color:var(--text-bright);font-weight:600;margin-bottom:6px">${esc(r.notes)}</div>` : ''
     return `<div class="browse-record" onclick="openDrawerForRecord(${JSON.stringify(r).replace(/"/g, '&quot;')})">
       <div class="browse-record-main">
+        ${notesHtml}
         <div style="display:flex;align-items:center;gap:8px">
           <span class="status-badge ${r.status}">${GLYPHS[r.status]} ${STATUS_LABELS[r.status]}</span>
           ${lastRun ? `<span style="font-size:11px;color:var(--muted)">${lastRun}</span>` : ''}
