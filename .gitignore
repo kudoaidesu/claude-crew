@@ -28,6 +28,10 @@ data/
 # VAPID keys (Web Push)
 data/vapid-keys.json
 
+# Tailscale TLS certificates
+*.ts.net.crt
+*.ts.net.key
+
 # Logs
 logs/
 
