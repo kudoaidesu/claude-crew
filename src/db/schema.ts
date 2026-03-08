@@ -13,7 +13,7 @@ const log = createLogger('db:schema')
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 /** 現在のスキーマバージョン。マイグレーション追加時にインクリメントする */
-const CURRENT_VERSION = 6
+const CURRENT_VERSION = 7
 
 export function initSchema(db: Database.Database): void {
   const version = db.pragma('user_version', { simple: true }) as number
@@ -29,6 +29,7 @@ export function initSchema(db: Database.Database): void {
     if (version < 4) migrateV4(db)
     if (version < 5) migrateV5(db)
     if (version < 6) migrateV6(db)
+    if (version < 7) migrateV7(db)
     db.pragma(`user_version = ${CURRENT_VERSION}`)
   })()
 
@@ -286,6 +287,21 @@ function migrateV6(db: Database.Database): void {
     )
   `)
   db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read, created_at)')
+}
+
+// ── v7: Push購読テーブル ──────────────────────────────────────
+
+function migrateV7(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL UNIQUE,
+      keys_p256dh TEXT NOT NULL,
+      keys_auth TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint)')
 }
 
 // ── JSON → SQLite データ移行 ──────────────────────────────
