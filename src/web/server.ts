@@ -12,7 +12,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { serve } from '@hono/node-server'
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from 'node:fs'
 import { resolve, join, basename } from 'node:path'
-import { homedir, networkInterfaces } from 'node:os'
+import { homedir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { isTailscaleIp, isProjectPathAllowed } from './path-guard.js'
 import { chatRoutes } from './routes/chat.js'
@@ -30,20 +30,8 @@ const log = createLogger('web:server')
 // --- 設定 ---
 const PORT = Number(process.env.WEB_PORT || '3100')
 
-/** ネットワークインターフェースからTailscale IPを動的検出 */
-function detectTailscaleIp(): string {
-  const ifaces = networkInterfaces()
-  for (const iface of Object.values(ifaces)) {
-    for (const addr of iface ?? []) {
-      if (addr.family === 'IPv4' && isTailscaleIp(addr.address)) {
-        return addr.address
-      }
-    }
-  }
-  return '127.0.0.1' // Tailscaleが使えない環境ではローカルのみ
-}
 
-const HOST = process.env.WEB_HOST || detectTailscaleIp()
+const HOST = process.env.WEB_HOST || '0.0.0.0'
 
 // --- プロジェクト一覧（projects.json + 自動スキャン） ---
 interface ProjectEntry {
@@ -830,7 +818,7 @@ app.get('*', (c) => {
 })
 
 // --- サーバー起動 ---
-log.info(`Starting web server on ${HOST}:${PORT} (Tailscale only)`)
+log.info(`Starting web server on ${HOST}:${PORT}`)
 
 const server = serve({
   fetch: app.fetch,
