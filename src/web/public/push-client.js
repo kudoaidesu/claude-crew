@@ -114,11 +114,11 @@ async function updatePushButton(btn) {
   if (subscription) {
     btn.textContent = 'Push ON'
     btn.classList.add('active')
-    btn.title = 'Push notifications enabled (click to disable)'
+    btn.title = 'プッシュ通知が有効です（クリックで無効化）'
   } else {
     btn.textContent = 'Push OFF'
     btn.classList.remove('active')
-    btn.title = 'Enable push notifications'
+    btn.title = 'プッシュ通知を有効にする'
   }
 }
 

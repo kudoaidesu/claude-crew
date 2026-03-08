@@ -673,16 +673,16 @@ pre:hover .code-copy-btn{opacity:1}
 <!-- Notification Panel -->
 <div class="notif-panel" id="notifPanel">
   <div class="notif-panel-header">
-    <span>Notifications</span>
+    <span>通知</span>
     <div class="notif-panel-actions">
-      <button class="notif-panel-action" onclick="markAllNotifRead()">Mark all read</button>
+      <button class="notif-panel-action" onclick="markAllNotifRead()">すべて既読</button>
     </div>
   </div>
   <div class="notif-list" id="notifList">
-    <div class="notif-empty">No notifications</div>
+    <div class="notif-empty">通知はありません</div>
   </div>
   <div class="notif-push-row">
-    <span>Push notifications</span>
+    <span>プッシュ通知</span>
     <button class="notif-push-btn" id="pushToggleBtn" onclick="togglePush(this)">Push OFF</button>
   </div>
 </div>
@@ -4967,7 +4967,7 @@ function renderNotifList(items) {
   const list = document.getElementById('notifList')
   if (!list) return
   if (!items.length) {
-    list.innerHTML = '<div class="notif-empty">No notifications</div>'
+    list.innerHTML = '<div class="notif-empty">通知はありません</div>'
     return
   }
   list.innerHTML = items.map(n => {
@@ -5033,7 +5033,7 @@ async function markNotifRead(id, el) {
     updateNotifBadge()
     const list = document.getElementById('notifList')
     if (list && !list.querySelector('.notif-item')) {
-      list.innerHTML = '<div class="notif-empty">No notifications</div>'
+      list.innerHTML = '<div class="notif-empty">通知はありません</div>'
     }
   } catch {}
 }
