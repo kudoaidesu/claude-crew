@@ -28,7 +28,8 @@ function isPushSupported() {
 /** 現在のPush購読状態を取得 */
 async function getPushSubscription() {
   if (!isPushSupported()) return null
-  const registration = await navigator.serviceWorker.ready
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Service Worker の準備がタイムアウトしました。ページを再読み込みしてください')), 5000))
+  const registration = await Promise.race([navigator.serviceWorker.ready, timeout])
   return registration.pushManager.getSubscription()
 }
 
@@ -56,7 +57,8 @@ async function subscribePush() {
   }
 
   // Push購読
-  const registration = await navigator.serviceWorker.ready
+  const swTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Service Worker の準備がタイムアウトしました。ページを再読み込みしてください')), 5000))
+  const registration = await Promise.race([navigator.serviceWorker.ready, swTimeout])
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -116,18 +118,19 @@ async function updatePushButton(btn) {
 
   const subscription = await getPushSubscription()
   if (subscription) {
-    btn.textContent = 'Push ON'
+    btn.textContent = '通知ON（タップで解除）'
     btn.classList.add('active')
-    btn.title = 'プッシュ通知が有効です（クリックで無効化）'
   } else {
-    btn.textContent = 'Push OFF'
+    btn.textContent = '通知をONにする'
     btn.classList.remove('active')
-    btn.title = 'プッシュ通知を有効にする'
   }
 }
 
 /** Push購読ボタンのクリックハンドラ */
 async function togglePush(btn) {
+  const original = btn.textContent
+  btn.textContent = '処理中...'
+  btn.disabled = true
   try {
     const subscription = await getPushSubscription()
     if (subscription) {
@@ -138,6 +141,9 @@ async function togglePush(btn) {
     await updatePushButton(btn)
   } catch (e) {
     console.error('Push toggle failed:', e)
+    btn.textContent = original
     alert(e.message)
+  } finally {
+    btn.disabled = false
   }
 }
