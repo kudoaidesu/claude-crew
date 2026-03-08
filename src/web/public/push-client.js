@@ -35,13 +35,17 @@ async function getPushSubscription() {
 /** Push通知を購読 */
 async function subscribePush() {
   if (!isPushSupported()) {
-    throw new Error('Push notifications not supported')
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    if (isIOS) {
+      throw new Error('iOSでプッシュ通知を使うには、Safariの共有ボタン(↑)→「ホーム画面に追加」してから開いてください')
+    }
+    throw new Error('このブラウザはプッシュ通知に対応していません')
   }
 
   // 通知権限をリクエスト
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') {
-    throw new Error('Notification permission denied')
+    throw new Error('通知の許可が拒否されました')
   }
 
   // VAPID公開鍵を取得
@@ -134,6 +138,6 @@ async function togglePush(btn) {
     await updatePushButton(btn)
   } catch (e) {
     console.error('Push toggle failed:', e)
-    alert('Push notification toggle failed: ' + e.message)
+    alert(e.message)
   }
 }
