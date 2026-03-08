@@ -64,21 +64,20 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 /* ── タスクカード ── */
 .task-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;position:relative}
 .task-card:hover,.task-card:active{border-color:var(--accent-border);background:var(--surface-hover)}
-.task-card.status-running{border-left:3px solid var(--blue)}
-.task-card.status-completed{border-left:3px solid var(--success)}
-.task-card.status-failed{border-left:3px solid var(--danger)}
-.task-card.status-pending{border-left:3px solid var(--border)}
-.task-card.status-recovering{border-left:3px solid var(--warning)}
-.task-card.status-blocked_rate_limit{border-left:3px solid var(--mauve)}
+.task-card.status-running{background:color-mix(in srgb,var(--blue) 6%,var(--surface));border-color:rgba(137,180,250,.25)}
+.task-card.status-completed{background:color-mix(in srgb,var(--success) 5%,var(--surface));border-color:rgba(166,227,161,.2)}
+.task-card.status-failed{background:color-mix(in srgb,var(--danger) 5%,var(--surface));border-color:rgba(243,139,168,.2)}
+.task-card.status-recovering{background:color-mix(in srgb,var(--warning) 5%,var(--surface));border-color:rgba(249,226,175,.2)}
+.task-card.status-blocked_rate_limit{background:color-mix(in srgb,var(--mauve) 6%,var(--surface));border-color:var(--accent-border)}
 .task-card-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
 .task-title{flex:1;font-size:14px;color:var(--text-bright);font-weight:500;line-height:1.4;word-break:break-word}
-.status-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;flex-shrink:0;white-space:nowrap}
-.status-badge.running{background:var(--blue-bg);color:var(--blue)}
-.status-badge.pending{background:rgba(108,112,134,.1);color:var(--muted)}
-.status-badge.completed{background:var(--success-bg);color:var(--success)}
-.status-badge.failed{background:var(--danger-bg);color:var(--danger)}
-.status-badge.recovering{background:var(--warning-bg);color:var(--warning)}
-.status-badge.blocked_rate_limit{background:var(--accent-dim);color:var(--mauve)}
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;flex-shrink:0;white-space:nowrap;letter-spacing:.01em}
+.status-badge.running{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(137,180,250,.3)}
+.status-badge.pending{background:rgba(108,112,134,.15);color:var(--muted);border:1px solid rgba(108,112,134,.2)}
+.status-badge.completed{background:var(--success-bg);color:var(--success);border:1px solid rgba(166,227,161,.25)}
+.status-badge.failed{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(243,139,168,.25)}
+.status-badge.recovering{background:var(--warning-bg);color:var(--warning);border:1px solid rgba(249,226,175,.25)}
+.status-badge.blocked_rate_limit{background:var(--accent-dim);color:var(--mauve);border:1px solid var(--accent-border)}
 .task-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .priority-badge{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
 .priority-badge.critical{background:rgba(243,139,168,.15);color:var(--danger)}
@@ -171,26 +170,26 @@ svg.ic{width:1em;height:1em;stroke:currentColor;stroke-width:2;stroke-linecap:ro
 <!-- サマリーバッジ行 -->
 <div class="summary-bar" id="summaryBar">
   <span class="summary-badge all active" data-status="" onclick="setFilter('')">
-    All <span class="badge-count" id="countAll">-</span>
+    すべて <span class="badge-count" id="countAll">-</span>
   </span>
   <span class="summary-badge running" data-status="running" onclick="setFilter('running')">
     <svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    Running <span class="badge-count" id="countRunning">0</span>
+    実行中 <span class="badge-count" id="countRunning">0</span>
   </span>
   <span class="summary-badge pending" data-status="pending" onclick="setFilter('pending')">
     <svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    Pending <span class="badge-count" id="countPending">0</span>
+    保留中 <span class="badge-count" id="countPending">0</span>
   </span>
   <span class="summary-badge completed" data-status="completed" onclick="setFilter('completed')">
     <svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
-    Completed <span class="badge-count" id="countCompleted">0</span>
+    完了 <span class="badge-count" id="countCompleted">0</span>
   </span>
   <span class="summary-badge failed" data-status="failed" onclick="setFilter('failed')">
     <svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-    Failed <span class="badge-count" id="countFailed">0</span>
+    失敗 <span class="badge-count" id="countFailed">0</span>
   </span>
   <span class="summary-badge recovering" data-status="recovering" onclick="setFilter('recovering')">
-    Recovering <span class="badge-count" id="countRecovering">0</span>
+    回復中 <span class="badge-count" id="countRecovering">0</span>
   </span>
   <div class="sse-indicator">
     <span class="sse-dot" id="sseDot"></span>
@@ -269,14 +268,32 @@ function statusClass(status) {
 
 function statusLabel(status) {
   const map = {
-    running: 'Running',
-    pending: 'Pending',
-    completed: 'Completed',
-    failed: 'Failed',
-    recovering: 'Recovering',
-    blocked_rate_limit: 'Rate Limited',
+    running: '実行中',
+    pending: '保留中',
+    completed: '完了',
+    failed: '失敗',
+    recovering: '回復中',
+    blocked_rate_limit: '制限中',
   }
   return map[status] || status
+}
+
+function priorityLabel(priority) {
+  const map = {
+    critical: '緊急',
+    high: '高',
+    medium: '中',
+    low: '低',
+  }
+  return map[priority] || priority
+}
+
+function modeLabel(mode) {
+  const map = {
+    safe: '安全',
+    auto: '自動',
+  }
+  return map[mode] || mode
 }
 
 // ── フィルター ────────────────────────────────────────────────────────────
@@ -372,8 +389,8 @@ function renderCard(task) {
     </div>
     <div class="task-meta">
       <span>${esc(task.worker_name || task.worker_id)}</span>
-      <span class="priority-badge ${task.priority || 'medium'}">${esc(task.priority || 'medium')}</span>
-      <span style="font-size:10px;color:var(--muted)">${esc(task.execution_mode || 'safe')}</span>
+      <span class="priority-badge ${task.priority || 'medium'}">${priorityLabel(task.priority || 'medium')}</span>
+      <span style="font-size:10px;color:var(--muted)">${modeLabel(task.execution_mode || 'safe')}</span>
       ${elapsedHtml}
     </div>
     ${latestEvent}
@@ -448,8 +465,8 @@ async function openDetail(taskId) {
       <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value mono">#${task.id}</span></div>
       <div class="detail-row"><span class="detail-label">ステータス</span><span class="detail-value"><span class="status-badge ${sc}">${statusLabel(task.status)}</span></span></div>
       <div class="detail-row"><span class="detail-label">ワーカー</span><span class="detail-value">${esc(task.worker_name)} <span style="color:var(--muted);font-size:11px">(${esc(task.project_slug)})</span></span></div>
-      <div class="detail-row"><span class="detail-label">優先度</span><span class="detail-value"><span class="priority-badge ${task.priority || 'medium'}">${esc(task.priority || 'medium')}</span></span></div>
-      <div class="detail-row"><span class="detail-label">実行モード</span><span class="detail-value mono">${esc(task.execution_mode || 'safe')}</span></div>
+      <div class="detail-row"><span class="detail-label">優先度</span><span class="detail-value"><span class="priority-badge ${task.priority || 'medium'}">${priorityLabel(task.priority || 'medium')}</span></span></div>
+      <div class="detail-row"><span class="detail-label">実行モード</span><span class="detail-value mono">${modeLabel(task.execution_mode || 'safe')}</span></div>
       <div class="detail-row"><span class="detail-label">リトライ</span><span class="detail-value">${task.retry_count || 0} 回</span></div>
       <div class="detail-row"><span class="detail-label">作成日時</span><span class="detail-value mono">${esc(formatTime(task.created_at))}</span></div>
     `
