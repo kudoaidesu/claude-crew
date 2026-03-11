@@ -147,7 +147,7 @@ pre:hover .code-copy-btn{opacity:1}
 .msg.assistant .content tr:nth-child(even) td{background:var(--surface)}
 
 /* ── 引用 ── */
-.msg.assistant .content blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:8px 0;color:var(--muted);background:var(--accent-dim);border-radius:0 6px 6px 0}
+.msg.assistant .content blockquote{border-left:3px solid var(--accent);padding:4px 12px;margin:8px 0;color:var(--text);background:var(--accent-dim);border-radius:0 6px 6px 0}
 
 /* ── ツール実行パネル ── */
 .tool-detail{margin:4px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-family:var(--font-mono);font-size:12px;background:var(--surface)}
@@ -2375,6 +2375,20 @@ async function init() {
   tabs.forEach((tab, tabId) => {
     if (tab.streamId) reconnectStream(tabId)
   })
+
+  // アラート通知からの遷移: ?alert= パラメータがあれば入力欄にプリセット
+  const alertParam = new URLSearchParams(window.location.search).get('alert')
+  if (alertParam) {
+    const input = document.getElementById('input')
+    if (input) {
+      input.value = alertParam
+      input.style.height = 'auto'
+      input.style.height = input.scrollHeight + 'px'
+      input.focus()
+    }
+    // URLからパラメータを除去（履歴を汚さない）
+    window.history.replaceState({}, '', window.location.pathname)
+  }
 }
 
 function getProjectTabInfo(projectPath) {
