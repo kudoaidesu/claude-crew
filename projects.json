@@ -8,5 +8,15 @@
     "slug": "eisamap-2025",
     "repo": "eisamap/eisamap_2025",
     "localPath": "/Users/ai-server/work/eisamap_2025"
+  },
+  {
+    "slug": "mirror-match",
+    "repo": "",
+    "localPath": "/Users/ai-server/work/mirror-match"
+  },
+  {
+    "slug": "park-quest",
+    "repo": "kudoaidesu/park-quest",
+    "localPath": "/Users/ai-server/work/park-quest"
   }
 ]
