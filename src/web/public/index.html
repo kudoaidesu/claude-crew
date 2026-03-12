@@ -1905,13 +1905,20 @@ function isImageFile(file) {
   return file.type.startsWith('image/') || IMAGE_EXTS.test(file.name)
 }
 
-/** 画像が 4.5MB を超える場合は Canvas API でリサイズして Blob を返す。超えない場合は元の File/Blob をそのまま返す */
+/**
+ * Claude API の base64 上限は 5MB。base64 はバイナリの約 4/3 倍になるため
+ * 元画像バイナリの安全上限は 5MB * 3/4 = 3.75MB。余裕を持って 3.5MB を閾値とする。
+ * リサイズ後も base64 サイズが 5MB を超えている場合は quality を下げて再試行する。
+ */
 async function resizeImageIfNeeded(file) {
-  const MAX_SIZE_BYTES = 4.5 * 1024 * 1024 // 4.5MB
-  if (file.size <= MAX_SIZE_BYTES) return file
+  // base64 上限 5MB → バイナリ上限: 5 * 1024 * 1024 * 3/4 ≒ 3.75MB → 安全マージンで 3.5MB
+  const MAX_BINARY_BYTES = 3.5 * 1024 * 1024 // 3.5MB
+  const MAX_BASE64_BYTES = 5 * 1024 * 1024    // 5MB (Anthropic API 上限)
+
+  if (file.size <= MAX_BINARY_BYTES) return file
 
   const bitmap = await createImageBitmap(file)
-  const ratio = Math.sqrt(MAX_SIZE_BYTES / file.size)
+  const ratio = Math.sqrt(MAX_BINARY_BYTES / file.size)
   const canvas = document.createElement('canvas')
   canvas.width = Math.floor(bitmap.width * ratio)
   canvas.height = Math.floor(bitmap.height * ratio)
@@ -1919,8 +1926,26 @@ async function resizeImageIfNeeded(file) {
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
 
   const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+
+  // quality を下げながら base64 サイズが 5MB 以内に収まるまで再試行
+  for (const quality of [0.9, 0.8, 0.7, 0.6]) {
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b), mimeType, quality)
+    })
+    // base64 サイズを事前チェック: バイナリ * 4/3 が API 上限以内か確認
+    if (blob.size * 4 / 3 <= MAX_BASE64_BYTES) {
+      return blob
+    }
+  }
+
+  // それでも超える場合はさらに解像度を落とす
+  const fallbackRatio = Math.sqrt(MAX_BINARY_BYTES / (canvas.width * canvas.height * 3))
+  const fc = document.createElement('canvas')
+  fc.width = Math.max(1, Math.floor(canvas.width * fallbackRatio))
+  fc.height = Math.max(1, Math.floor(canvas.height * fallbackRatio))
+  fc.getContext('2d').drawImage(canvas, 0, 0, fc.width, fc.height)
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), mimeType, 0.9)
+    fc.toBlob((b) => resolve(b), mimeType, 0.7)
   })
 }
 

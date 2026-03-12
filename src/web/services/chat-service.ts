@@ -102,15 +102,21 @@ export interface SdkMessage {
 // ── 画像リサイズ ─────────────────────────────────────
 
 /**
- * base64 画像データが 4.5MB 相当を超える場合に sharp でリサイズする。
- * アスペクト比を維持し、面積比で縮小率を算出（sips -Z 2000 相当）。
+ * base64 画像データが Anthropic API 上限（base64 で 5MB）を超える場合に sharp でリサイズする。
+ * base64 は 3バイト → 4文字なので、バイナリ上限 = 5MB * 3/4 = 3.75MB。
+ * 余裕を持って 3.5MB をターゲットに縮小する。
+ * リサイズ後も base64 サイズが 5MB を超える場合は quality を下げて再試行する。
  * エラー時はリサイズをスキップして元データをそのまま返す（フォールバック）。
  */
-const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024
-// base64 は 3バイト → 4文字なので base64 文字列長の上限 = MAX_IMAGE_BYTES * 4/3
-const MAX_BASE64_LENGTH = Math.ceil(MAX_IMAGE_BYTES * 4 / 3)
+// Anthropic API の base64 上限は 5MB
+const MAX_BASE64_BYTES = 5 * 1024 * 1024
+// バイナリターゲット: 5MB * 3/4 * 安全マージン ≒ 3.5MB
+const TARGET_BINARY_BYTES = 3.5 * 1024 * 1024
+// base64 文字列長の上限: API上限バイト数 (1文字=1バイト)
+const MAX_BASE64_LENGTH = MAX_BASE64_BYTES
 
 async function resizeImageIfNeeded(base64Data: string, mediaType: string): Promise<string> {
+  // base64 文字列長 = base64バイト数 (ASCII文字のみ)
   if (base64Data.length <= MAX_BASE64_LENGTH) return base64Data
 
   try {
@@ -118,17 +124,35 @@ async function resizeImageIfNeeded(base64Data: string, mediaType: string): Promi
     const metadata = await sharp(buffer).metadata()
 
     const originalBytes = buffer.length
-    const ratio = Math.sqrt(MAX_IMAGE_BYTES / originalBytes)
+    const ratio = Math.sqrt(TARGET_BINARY_BYTES / originalBytes)
     const newWidth = Math.max(1, Math.floor((metadata.width ?? 2000) * ratio))
 
     const format = mediaType === 'image/png' ? ('png' as const) : ('jpeg' as const)
-    const resized = await sharp(buffer)
-      .resize(newWidth)
-      .toFormat(format, { quality: 90 })
+
+    // quality を下げながら base64 サイズが API 上限以内に収まるまで再試行
+    for (const quality of [90, 80, 70, 60]) {
+      const resized = await sharp(buffer)
+        .resize(newWidth)
+        .toFormat(format, { quality })
+        .toBuffer()
+
+      const resizedBase64 = resized.toString('base64')
+      if (resizedBase64.length <= MAX_BASE64_LENGTH) {
+        log.info(`Image resized: ${originalBytes} bytes → ${resized.length} bytes (width=${newWidth}, quality=${quality})`)
+        return resizedBase64
+      }
+    }
+
+    // それでも超える場合はさらに解像度を下げる
+    const fallbackRatio = Math.sqrt(TARGET_BINARY_BYTES * 0.5 / originalBytes)
+    const fallbackWidth = Math.max(1, Math.floor((metadata.width ?? 2000) * fallbackRatio))
+    const fallback = await sharp(buffer)
+      .resize(fallbackWidth)
+      .toFormat(format, { quality: 60 })
       .toBuffer()
 
-    log.info(`Image resized: ${originalBytes} bytes → ${resized.length} bytes (width=${newWidth})`)
-    return resized.toString('base64')
+    log.warn(`Image required aggressive resize: ${originalBytes} bytes → ${fallback.length} bytes (width=${fallbackWidth})`)
+    return fallback.toString('base64')
   } catch (err) {
     log.warn(`Image resize failed, using original: ${err instanceof Error ? err.message : String(err)}`)
     return base64Data
